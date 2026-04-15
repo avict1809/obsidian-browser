@@ -41,3 +41,6 @@ html, body, #root {
 @keyframes pulse    { 0%,100% { opacity:.6 } 50% { opacity:1 } }
 @keyframes slideDown { from { opacity:0; transform:translateY(-6px) } to { opacity:1; transform:none } }
 @keyframes shimmer  { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+@keyframes shake        { 0%,100%{transform:translateX(0)} 10%,30%,50%,70%,90%{transform:translateX(-5px)} 20%,40%,60%,80%{transform:translateX(5px)} }
+@keyframes dotScale     { from{transform:scale(0)} to{transform:scale(1)} }
+@keyframes slideInRight { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:none} }

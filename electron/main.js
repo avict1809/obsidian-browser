@@ -1,5 +1,7 @@
 const { app, BrowserWindow, ipcMain, session, Menu, shell, dialog, webContents } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
+const fs = require('fs');
 
 // ── Suppress internal Electron webview errors ──────────────────────────────
 // GUEST_VIEW_MANAGER_CALL and ERR_ABORTED (-3) errors are internal to Electron's
@@ -137,6 +139,42 @@ ipcMain.handle('clear-data', async () => {
   await ses.clearCache();
   await ses.clearStorageData();
   history = [];
+  return true;
+});
+
+// ── IPC: Auth / PIN lock ───────────────────────────────────────────────────
+let _authFilePath = null;
+function getAuthFilePath() {
+  if (!_authFilePath) _authFilePath = path.join(app.getPath('userData'), '.auth');
+  return _authFilePath;
+}
+
+function hashPin(pin) {
+  return crypto.createHash('sha256').update(String(pin)).digest('hex');
+}
+
+function getStoredHash() {
+  try {
+    const p = getAuthFilePath();
+    if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8').trim();
+  } catch {}
+  return null;
+}
+
+function saveHash(hash) {
+  fs.writeFileSync(getAuthFilePath(), hash, 'utf8');
+}
+
+ipcMain.handle('auth-has-password', () => getStoredHash() !== null);
+
+ipcMain.handle('auth-verify', (_, pin) => {
+  const stored = getStoredHash();
+  if (!stored) return false;
+  return stored === hashPin(pin);
+});
+
+ipcMain.handle('auth-set-password', (_, pin) => {
+  saveHash(hashPin(pin));
   return true;
 });
 

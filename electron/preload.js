@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Data
   clearData: () => ipcRenderer.invoke('clear-data'),
 
+  // Auth / PIN lock
+  authHasPassword: ()      => ipcRenderer.invoke('auth-has-password'),
+  authVerify:      (pin)   => ipcRenderer.invoke('auth-verify', pin),
+  authSetPassword: (pin)   => ipcRenderer.invoke('auth-set-password', pin),
+
   // Events from main → renderer
   on: (channel, cb) => {
     const allowed = [

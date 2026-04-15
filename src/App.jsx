@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { normalizeUrl, displayUrl, isSecure, getFaviconUrl, Icon, Spinner, Tab, UrlBar, TBtn } from './components.jsx';
 import NewTabPage from './NewTabPage.jsx';
+import LockScreen from './LockScreen.jsx';
+import DownloadsPanel from './DownloadsPanel.jsx';
 
 // ─── Tab factory ──────────────────────────────────────────────────────────────
 
@@ -8,8 +10,8 @@ let tabIdCounter = 1;
 function createTab(url = 'about:newtab') {
   return {
     id: tabIdCounter++,
-    url,                     // Current URL displayed in URL bar
-    initialUrl: url,         // The URL to set as webview src (only used on first mount)
+    url,
+    initialUrl: url,
     title: url === 'about:newtab' ? 'New Tab' : '',
     favicon: null,
     loading: url !== 'about:newtab',
@@ -38,33 +40,49 @@ function HistoryPanel({ onNavigate, onClose }) {
 
   return (
     <div style={{
-      position: 'absolute', top: 44, right: 0, width: 360, maxHeight: '70vh',
-      background: 'var(--bg-elevated)', border: '1px solid var(--border-hover)',
-      borderRadius: 'var(--radius-lg)', zIndex: 100, overflow: 'hidden',
-      boxShadow: '0 16px 48px rgba(0,0,0,0.6)', animation: 'slideDown 0.15s ease',
+      position: 'absolute', top: 0, right: 0, bottom: 0,
+      width: 360,
+      background: 'var(--bg-elevated)',
+      borderLeft: '1px solid var(--border-hover)',
       display: 'flex', flexDirection: 'column',
+      zIndex: 50,
+      animation: 'slideInRight 0.2s ease',
+      boxShadow: '-12px 0 40px rgba(0,0,0,0.5)',
     }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>History</span>
+      {/* Header */}
+      <div style={{
+        padding: '14px 16px', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="history" size={14} color="var(--amber)" />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>History</span>
+        </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={clearAll} disabled={clearing} style={{
             background: 'none', border: '1px solid var(--border)', borderRadius: 6,
             padding: '3px 10px', fontSize: 11, color: 'var(--text-secondary)',
             cursor: 'pointer', fontFamily: 'var(--font-ui)', transition: 'all 0.12s',
           }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(224,85,85,0.1)'; e.currentTarget.style.borderColor = 'rgba(224,85,85,0.3)'; e.currentTarget.style.color = 'var(--red)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-          >
-            Clear all
-          </button>
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(224,85,85,0.1)'; e.currentTarget.style.color = 'var(--red)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >Clear all</button>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4, display: 'flex' }}>
             <Icon name="close" size={13} color="currentColor" />
           </button>
         </div>
       </div>
+
+      {/* List */}
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {history.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>No history yet</div>
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', height: '100%', gap: 12,
+          }}>
+            <Icon name="history" size={32} color="var(--text-muted)" />
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>No history yet</span>
+          </div>
         ) : history.map((item, i) => (
           <button key={i} onClick={() => { onNavigate(item.url); onClose(); }} style={{
             width: '100%', background: 'none', border: 'none', padding: '9px 16px',
@@ -77,8 +95,7 @@ function HistoryPanel({ onNavigate, onClose }) {
             <img
               src={`https://www.google.com/s2/favicons?domain=${(() => { try { return new URL(item.url).hostname; } catch { return ''; } })()}&sz=32`}
               width={14} height={14} style={{ flexShrink: 0, objectFit: 'contain', borderRadius: 2 }}
-              onError={e => e.target.style.display = 'none'}
-              alt=""
+              onError={e => e.target.style.display = 'none'} alt=""
             />
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <div style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -94,45 +111,14 @@ function HistoryPanel({ onNavigate, onClose }) {
           </button>
         ))}
       </div>
-    </div>
-  );
-}
 
-// ─── Download Toast ───────────────────────────────────────────────────────────
-
-function DownloadToast({ downloads, onDismiss }) {
-  if (downloads.length === 0) return null;
-  return (
-    <div style={{
-      position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 200,
-    }}>
-      {downloads.map((d, i) => (
-        <div key={i} style={{
-          background: 'var(--bg-elevated)', border: '1px solid var(--border-hover)',
-          borderRadius: 10, padding: '10px 14px', minWidth: 260,
-          display: 'flex', alignItems: 'center', gap: 10,
-          animation: 'slideDown 0.2s ease',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        }}>
-          <Icon name="download" size={14} color={d.done ? 'var(--green)' : 'var(--amber)'} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
-              {d.filename}
-            </div>
-            {!d.done && d.total > 0 && (
-              <div style={{ marginTop: 4, height: 2, background: 'var(--border)', borderRadius: 1 }}>
-                <div style={{ height: '100%', background: 'var(--amber)', borderRadius: 1, width: `${Math.round((d.received / d.total) * 100)}%`, transition: 'width 0.3s' }} />
-              </div>
-            )}
-            {d.done && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>Download complete</div>}
-          </div>
-          {d.done && (
-            <button onClick={() => onDismiss(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex', borderRadius: 4 }}>
-              <Icon name="close" size={11} color="currentColor" />
-            </button>
-          )}
-        </div>
-      ))}
+      {/* Footer */}
+      <div style={{
+        padding: '10px 16px', borderTop: '1px solid var(--border)',
+        fontSize: 10, color: 'rgba(255,255,255,0.18)', fontFamily: 'var(--font-mono)', flexShrink: 0,
+      }}>
+        Ctrl+H to toggle
+      </div>
     </div>
   );
 }
@@ -140,14 +126,15 @@ function DownloadToast({ downloads, onDismiss }) {
 // ─── Browser Window ───────────────────────────────────────────────────────────
 
 export default function App() {
-  const [tabs, setTabs]           = useState([createTab('about:newtab')]);
-  const [activeId, setActiveId]   = useState(tabs[0].id);
+  const [locked, setLocked]           = useState(true);   // starts locked until auth check
+  const [tabs, setTabs]               = useState([createTab('about:newtab')]);
+  const [activeId, setActiveId]       = useState(tabs[0].id);
   const [showHistory, setShowHistory] = useState(false);
-  const [downloads, setDownloads] = useState([]);
+  const [showDownloads, setShowDownloads] = useState(false);
+  const [downloads, setDownloads]     = useState([]);
   const [isMaximized, setIsMaximized] = useState(false);
 
-  const webviewRefs = useRef({});
-  // Track which webviews have had events attached to prevent duplicate listeners
+  const webviewRefs     = useRef({});
   const attachedWebviews = useRef(new Set());
 
   const activeTab = tabs.find(t => t.id === activeId) || tabs[0];
@@ -166,15 +153,14 @@ export default function App() {
   }, []);
 
   const closeTab = useCallback((id) => {
-    // Clean up refs when closing a tab
     attachedWebviews.current.delete(id);
     delete webviewRefs.current[id];
 
     setTabs(ts => {
       if (ts.length === 1) {
-        const newTab = createTab('about:newtab');
-        setActiveId(newTab.id);
-        return [newTab];
+        const t = createTab('about:newtab');
+        setActiveId(t.id);
+        return [t];
       }
       const next = ts.filter(t => t.id !== id);
       setActiveId(prev => {
@@ -186,29 +172,21 @@ export default function App() {
     });
   }, []);
 
-  // ── Navigation helpers ─────────────────────────────────────────────────────
-  // KEY FIX: navigate() only calls wv.loadURL() — it does NOT update tab.url state.
-  // The URL state is updated ONLY by webview navigation events (did-navigate, etc).
-  // This prevents the cycle: navigate → state update → React re-render → webview src change → reload.
+  // ── Navigation ─────────────────────────────────────────────────────────────
 
   const navigate = useCallback((url, tabId) => {
     const tid = tabId ?? activeId;
     const normalized = normalizeUrl(url);
-
-    // If this is a newtab page being navigated away from, update the url
-    // and initialUrl so the webview mounts with the correct src
     setTabs(ts => ts.map(t => {
       if (t.id === tid && (t.url === 'about:newtab' || t.url === 'about:blank')) {
         return { ...t, url: normalized, initialUrl: normalized, loading: true, error: null };
       }
       return t;
     }));
-
-    // If there's already a webview mounted, navigate it programmatically
     const wv = webviewRefs.current[tid];
     if (wv) {
       updateTab(tid, { loading: true, error: null });
-      try { wv.loadURL(normalized); } catch (e) { /* ignore load errors */ }
+      try { wv.loadURL(normalized); } catch {}
     }
   }, [activeId, updateTab]);
 
@@ -224,7 +202,6 @@ export default function App() {
 
   const goHome = useCallback(() => {
     updateTab(activeId, { url: 'about:newtab', initialUrl: 'about:newtab', title: 'New Tab', favicon: null, loading: false, canGoBack: false, canGoForward: false, error: null });
-    // Remove the webview ref so it unmounts
     attachedWebviews.current.delete(activeId);
     delete webviewRefs.current[activeId];
   }, [activeId, updateTab]);
@@ -246,32 +223,25 @@ export default function App() {
     if (!api) return;
 
     api.isMaximized().then(setIsMaximized);
-
     api.on('window-state', state => setIsMaximized(state === 'maximized'));
-
     api.on('open-new-tab', url => addTab(url));
 
     api.on('download-progress', ({ filename, received, total }) => {
       setDownloads(ds => {
         const i = ds.findIndex(d => d.filename === filename && !d.done);
-        if (i >= 0) {
-          const next = [...ds]; next[i] = { ...next[i], received, total };
-          return next;
-        }
+        if (i >= 0) { const n = [...ds]; n[i] = { ...n[i], received, total }; return n; }
         return [...ds, { filename, received, total, done: false }];
       });
     });
 
-    api.on('download-done', ({ filename, state }) => {
+    api.on('download-done', ({ filename, state, savePath }) => {
       setDownloads(ds => {
         const i = ds.findIndex(d => d.filename === filename && !d.done);
-        if (i >= 0) {
-          const next = [...ds]; next[i] = { ...next[i], done: true };
-          return next;
-        }
-        return [...ds, { filename, done: true }];
+        if (i >= 0) { const n = [...ds]; n[i] = { ...n[i], done: true, savePath }; return n; }
+        return [...ds, { filename, done: true, savePath }];
       });
-      setTimeout(() => setDownloads(ds => ds.filter(d => !d.done || d.filename !== filename)), 5000);
+      // Auto-open downloads panel when something finishes
+      setShowDownloads(true);
     });
 
     return () => {
@@ -282,17 +252,21 @@ export default function App() {
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (locked) return;
     const handler = e => {
       const mod = e.ctrlKey || e.metaKey;
+
       if (mod && e.key === 't') { e.preventDefault(); addTab(); }
       if (mod && e.key === 'w') { e.preventDefault(); closeTab(activeId); }
       if (mod && e.key === 'r') { e.preventDefault(); reload(); }
-      if (mod && e.key === 'l') { e.preventDefault(); /* focus url bar via event */ document.dispatchEvent(new CustomEvent('focus-urlbar')); }
+      if (mod && e.key === 'l') { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
+      if (mod && e.key === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
+      if (mod && e.key === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
       if (mod && e.shiftKey && e.key === 'H') { e.preventDefault(); goBack(); }
       if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); goForward(); }
       if (e.altKey && e.key === 'ArrowLeft') goBack();
       if (e.altKey && e.key === 'ArrowRight') goForward();
-      // Cycle tabs
+
       if (mod && e.key === 'Tab') {
         e.preventDefault();
         const idx = tabs.findIndex(t => t.id === activeId);
@@ -302,20 +276,15 @@ export default function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeId, tabs, addTab, closeTab, reload, goBack, goForward]);
+  }, [locked, activeId, tabs, addTab, closeTab, reload, goBack, goForward]);
 
   // ── Webview event wiring ───────────────────────────────────────────────────
-  // KEY FIX: Events are attached once per webview via the attachedWebviews set.
-  // We use closure-based lastUrl/lastTitle tracking to deduplicate events.
-  // Navigation events ONLY update the tab's `url` state (for the URL bar display),
-  // they do NOT change `initialUrl` or `src`, so no reload occurs.
 
   const attachWebviewEvents = useCallback((wv, tabId) => {
     if (!wv || attachedWebviews.current.has(tabId)) return;
     attachedWebviews.current.add(tabId);
 
-    // Track URLs to avoid duplicate updates from SPA navigation events
-    let lastUrl = '';
+    let lastUrl   = '';
     let lastTitle = '';
 
     wv.addEventListener('did-start-loading', () => updateTab(tabId, { loading: true, error: null }));
@@ -323,13 +292,7 @@ export default function App() {
 
     wv.addEventListener('did-finish-load', () => {
       const url = wv.getURL();
-      updateTab(tabId, {
-        url,
-        canGoBack: wv.canGoBack(),
-        canGoForward: wv.canGoForward(),
-        loading: false,
-      });
-      // Record in history only if URL changed
+      updateTab(tabId, { url, canGoBack: wv.canGoBack(), canGoForward: wv.canGoForward(), loading: false });
       if (url && !url.startsWith('about:') && url !== lastUrl) {
         lastUrl = url;
         try {
@@ -341,29 +304,20 @@ export default function App() {
     });
 
     wv.addEventListener('page-title-updated', e => {
-      if (e.title !== lastTitle) {
-        lastTitle = e.title;
-        updateTab(tabId, { title: e.title });
-      }
+      if (e.title !== lastTitle) { lastTitle = e.title; updateTab(tabId, { title: e.title }); }
     });
 
     wv.addEventListener('page-favicon-updated', e => updateTab(tabId, { favicon: e.favicons?.[0] || null }));
 
     wv.addEventListener('did-navigate', e => {
-      const url = e.url;
-      if (url !== lastUrl) {
-        lastUrl = url;
-      }
-      // Always update nav state even if URL didn't change (canGoBack/Forward may have)
-      updateTab(tabId, { url, canGoBack: wv.canGoBack(), canGoForward: wv.canGoForward() });
+      if (e.url !== lastUrl) lastUrl = e.url;
+      updateTab(tabId, { url: e.url, canGoBack: wv.canGoBack(), canGoForward: wv.canGoForward() });
     });
 
     wv.addEventListener('did-navigate-in-page', e => {
-      // SPA navigation — only update if URL actually changed
       if (e.url !== lastUrl) {
         lastUrl = e.url;
         updateTab(tabId, { url: e.url, canGoBack: wv.canGoBack(), canGoForward: wv.canGoForward() });
-        // Record SPA navigation in history
         if (e.url && !e.url.startsWith('about:')) {
           try {
             const domain = new URL(e.url).hostname;
@@ -375,7 +329,6 @@ export default function App() {
     });
 
     wv.addEventListener('did-fail-load', e => {
-      // Ignore ERR_ABORTED (-3) which happens when navigation is cancelled (normal for SPAs)
       if (e.errorCode !== -3) {
         updateTab(tabId, { loading: false, error: { code: e.errorCode, desc: e.errorDescription, url: e.validatedURL } });
       }
@@ -384,70 +337,72 @@ export default function App() {
     wv.addEventListener('new-window', e => addTab(e.url));
 
     wv.addEventListener('dom-ready', () => {
-      // Setup download handling via webContentsId
       const id = wv.getWebContentsId?.();
       if (id) window.electronAPI?.setupWebviewSession(id);
     });
   }, [updateTab, addTab]);
 
+  // ── Panel side-close helper ────────────────────────────────────────────────
+  const closeAllPanels = () => { setShowHistory(false); setShowDownloads(false); };
+
+  // ── Lock Screen ────────────────────────────────────────────────────────────
+
+  if (locked) {
+    return <LockScreen onUnlock={() => setLocked(false)} />;
+  }
+
+  // ── Change PIN button (exposed via Settings-like gear click area) ──────────
+  // We allow the user to change the PIN from inside the browser — triggered
+  // by a dedicated toolbar button that renders the LockScreen in 'change' mode.
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
+
+  const hasActivePanelRight = showHistory || showDownloads;
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)', overflow: 'hidden' }}>
 
       {/* ── Titlebar ── */}
-      <div
-        style={{
-          height: 44, display: 'flex', alignItems: 'center', gap: 6,
-          padding: '0 8px', background: 'var(--bg-surface)',
-          borderBottom: '1px solid var(--border)',
-          WebkitAppRegion: 'drag', appRegion: 'drag',
-          flexShrink: 0,
-        }}
-      >
-        {/* Window controls (macOS style on the left) */}
+      <div style={{
+        height: 44, display: 'flex', alignItems: 'center', gap: 6,
+        padding: '0 8px', background: 'var(--bg-surface)',
+        borderBottom: '1px solid var(--border)',
+        WebkitAppRegion: 'drag', appRegion: 'drag',
+        flexShrink: 0,
+      }}>
+        {/* Window controls */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', WebkitAppRegion: 'no-drag', appRegion: 'no-drag', marginRight: 4 }}>
           <button onClick={() => window.electronAPI?.close()}
             style={{ width: 12, height: 12, borderRadius: '50%', border: 'none', background: '#e05555', cursor: 'pointer', transition: 'opacity 0.12s' }}
             onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            title="Close"
-          />
+            title="Close" />
           <button onClick={() => window.electronAPI?.minimize()}
             style={{ width: 12, height: 12, borderRadius: '50%', border: 'none', background: '#e8a030', cursor: 'pointer', transition: 'opacity 0.12s' }}
             onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            title="Minimize"
-          />
+            title="Minimize" />
           <button onClick={() => window.electronAPI?.maximize()}
             style={{ width: 12, height: 12, borderRadius: '50%', border: 'none', background: '#5cb87a', cursor: 'pointer', transition: 'opacity 0.12s' }}
             onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            title={isMaximized ? 'Restore' : 'Maximize'}
-          />
+            title={isMaximized ? 'Restore' : 'Maximize'} />
         </div>
 
         {/* Tabs */}
-        <div style={{
-          flex: 1, display: 'flex', gap: 4, overflow: 'hidden', alignItems: 'center',
-          WebkitAppRegion: 'no-drag', appRegion: 'no-drag',
-        }}>
+        <div style={{ flex: 1, display: 'flex', gap: 4, overflow: 'hidden', alignItems: 'center', WebkitAppRegion: 'no-drag', appRegion: 'no-drag' }}>
           {tabs.map(tab => (
-            <Tab
-              key={tab.id}
-              tab={tab}
-              isActive={tab.id === activeId}
+            <Tab key={tab.id} tab={tab} isActive={tab.id === activeId}
               onActivate={() => setActiveId(tab.id)}
-              onClose={() => closeTab(tab.id)}
-            />
+              onClose={() => closeTab(tab.id)} />
           ))}
         </div>
 
         {/* New tab button */}
         <div style={{ WebkitAppRegion: 'no-drag', appRegion: 'no-drag' }}>
-          <TBtn icon="plus" onClick={() => addTab()} title="New tab (⌘T)" size={13} />
+          <TBtn icon="plus" onClick={() => addTab()} title="New tab (Ctrl+T)" size={13} />
         </div>
       </div>
 
@@ -458,12 +413,10 @@ export default function App() {
         borderBottom: '1px solid var(--border)', flexShrink: 0,
         position: 'relative',
       }}>
-        {/* Nav buttons */}
         <TBtn icon="back"    onClick={goBack}    disabled={!activeTab.canGoBack}    title="Back (Alt+←)" />
         <TBtn icon="forward" onClick={goForward} disabled={!activeTab.canGoForward} title="Forward (Alt+→)" />
         <TBtn icon="home"    onClick={goHome}    title="New Tab" />
 
-        {/* URL Bar */}
         <UrlBar
           url={activeTab.url}
           loading={activeTab.loading}
@@ -472,83 +425,106 @@ export default function App() {
           onReload={reload}
         />
 
-        {/* Right controls */}
-        <TBtn icon="history" onClick={() => setShowHistory(v => !v)} title="History" active={showHistory} />
-
-        {/* History dropdown */}
-        {showHistory && (
-          <div style={{ position: 'absolute', top: '100%', right: 12, zIndex: 200 }}>
-            <HistoryPanel
-              onNavigate={url => navigate(url)}
-              onClose={() => setShowHistory(false)}
-            />
-          </div>
-        )}
+        {/* Right toolbar buttons */}
+        <TBtn
+          icon="history"
+          onClick={() => { setShowHistory(v => !v); setShowDownloads(false); }}
+          title="History (Ctrl+H)"
+          active={showHistory}
+        />
+        <TBtn
+          icon="download"
+          onClick={() => { setShowDownloads(v => !v); setShowHistory(false); }}
+          title="Downloads (Ctrl+J)"
+          active={showDownloads}
+        />
+        {/* Lock button */}
+        <TBtn
+          icon="lock"
+          onClick={() => setLocked(true)}
+          title="Lock browser"
+        />
       </div>
 
-      {/* ── Content area ── */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      {/* ── Content area (browser + optional right panel) ── */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
 
-        {tabs.map(tab => (
-          <div
-            key={tab.id}
-            style={{
+        {/* Webview area */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          {tabs.map(tab => (
+            <div key={tab.id} style={{
               position: 'absolute', inset: 0,
               visibility: tab.id === activeId ? 'visible' : 'hidden',
               zIndex: tab.id === activeId ? 1 : 0,
-            }}
-          >
-            {/* New Tab page */}
-            {(tab.url === 'about:newtab' || tab.url === 'about:blank') ? (
-              <NewTabPage onNavigate={url => navigate(url, tab.id)} />
-            ) : tab.error ? (
-              // Error page
-              <div style={{
-                width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40,
-                background: 'var(--bg-base)', animation: 'fadeIn 0.3s ease',
-              }}>
-                <div style={{ fontSize: 48, opacity: 0.3 }}>⚠</div>
-                <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>Page couldn't load</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
-                  {tab.error.desc || 'The page failed to load.'}<br />
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-                    {tab.error.code && `Error ${tab.error.code}`}
-                  </span>
+            }}>
+              {(tab.url === 'about:newtab' || tab.url === 'about:blank') ? (
+                <NewTabPage onNavigate={url => navigate(url, tab.id)} />
+              ) : tab.error ? (
+                <div style={{
+                  width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40,
+                  background: 'var(--bg-base)', animation: 'fadeIn 0.3s ease',
+                }}>
+                  <div style={{ fontSize: 48, opacity: 0.3 }}>⚠</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>Page couldn't load</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
+                    {tab.error.desc || 'The page failed to load.'}<br />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                      {tab.error.code && `Error ${tab.error.code}`}
+                    </span>
+                  </div>
+                  <button onClick={reload} style={{
+                    background: 'var(--amber)', border: 'none', borderRadius: 8, padding: '8px 20px',
+                    fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer',
+                    fontFamily: 'var(--font-ui)', transition: 'opacity 0.12s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >Try again</button>
                 </div>
-                <button onClick={() => reload()} style={{
-                  background: 'var(--amber)', border: 'none', borderRadius: 8, padding: '8px 20px',
-                  fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer',
-                  fontFamily: 'var(--font-ui)', transition: 'opacity 0.12s',
-                }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                >
-                  Try again
-                </button>
-              </div>
-            ) : (
-              // Webview — use initialUrl as src to prevent re-navigation on re-render
-              <webview
-                ref={wv => {
-                  if (wv && !webviewRefs.current[tab.id]) {
-                    webviewRefs.current[tab.id] = wv;
-                    attachWebviewEvents(wv, tab.id);
-                  }
-                  if (!wv) {
-                    delete webviewRefs.current[tab.id];
-                    // Don't remove from attachedWebviews here — the tab might just be hidden
-                  }
-                }}
-                src={tab.initialUrl}
-                partition="persist:obsidian"
-                style={{ width: '100%', height: '100%', border: 'none', display: 'flex' }}
-                allowpopups="true"
-                webpreferences="contextIsolation=yes"
-              />
-            )}
-          </div>
-        ))}
+              ) : (
+                <webview
+                  ref={wv => {
+                    if (wv && !webviewRefs.current[tab.id]) {
+                      webviewRefs.current[tab.id] = wv;
+                      attachWebviewEvents(wv, tab.id);
+                    }
+                    if (!wv) delete webviewRefs.current[tab.id];
+                  }}
+                  src={tab.initialUrl}
+                  partition="persist:obsidian"
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'flex' }}
+                  allowpopups="true"
+                  webpreferences="contextIsolation=yes"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* ── Right side panels ── */}
+        {showHistory && (
+          <HistoryPanel
+            onNavigate={url => navigate(url)}
+            onClose={() => setShowHistory(false)}
+          />
+        )}
+        {showDownloads && (
+          <DownloadsPanel
+            downloads={downloads}
+            onDismiss={i => setDownloads(ds => ds.filter((_, j) => j !== i))}
+            onClear={() => setDownloads([])}
+            onClose={() => setShowDownloads(false)}
+          />
+        )}
+
+        {/* Click-outside overlay to close panels */}
+        {hasActivePanelRight && (
+          <div
+            style={{ position: 'absolute', inset: 0, zIndex: 49 }}
+            onClick={closeAllPanels}
+          />
+        )}
       </div>
 
       {/* ── Status bar ── */}
@@ -559,7 +535,7 @@ export default function App() {
       }}>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
           {activeTab.loading ? (
-            <span style={{ color: 'var(--amber)' }}>Loading...</span>
+            <span style={{ color: 'var(--amber)' }}>Loading…</span>
           ) : activeTab.url && activeTab.url !== 'about:newtab' ? (
             activeTab.url
           ) : (
@@ -575,19 +551,13 @@ export default function App() {
           <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
             {tabs.length} tab{tabs.length !== 1 ? 's' : ''}
           </span>
+          {downloads.filter(d => !d.done).length > 0 && (
+            <span style={{ fontSize: 9, color: 'var(--amber)', fontFamily: 'var(--font-mono)' }}>
+              ↓ {downloads.filter(d => !d.done).length} downloading
+            </span>
+          )}
         </div>
       </div>
-
-      {/* ── Download toasts ── */}
-      <DownloadToast downloads={downloads} onDismiss={i => setDownloads(ds => ds.filter((_, j) => j !== i))} />
-
-      {/* ── Click-outside to close panels ── */}
-      {showHistory && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-          onClick={() => setShowHistory(false)}
-        />
-      )}
     </div>
   );
 }
