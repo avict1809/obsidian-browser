@@ -91,9 +91,16 @@ const S = {
   }),
 
   link: {
-    fontSize: 12, color: 'rgba(255,255,255,0.3)',
+    fontSize: 11, color: 'rgba(255,255,255,0.35)',
     cursor: 'pointer', textDecoration: 'none',
-    transition: 'color 0.15s',
+    transition: 'all 0.2s',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    padding: '6px 16px',
+    borderRadius: 8,
+    fontFamily: "'DM Mono', monospace",
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
 };
 
@@ -336,8 +343,18 @@ export default function LockScreen({ onUnlock }) {
           <button
             style={S.link}
             onClick={() => { setError(''); setMode('change'); }}
-            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+            onMouseEnter={e => {
+              e.currentTarget.style.color = 'var(--amber)';
+              e.currentTarget.style.borderColor = 'rgba(232,160,48,0.3)';
+              e.currentTarget.style.background = 'rgba(232,160,48,0.05)';
+              e.currentTarget.style.boxShadow = '0 0 15px rgba(232,160,48,0.1)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = 'rgba(255,255,255,0.35)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
           >
             Change PIN
           </button>
@@ -346,8 +363,16 @@ export default function LockScreen({ onUnlock }) {
           <button
             style={S.link}
             onClick={() => { setError(''); setMode('check'); }}
-            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+            onMouseEnter={e => {
+              e.currentTarget.style.color = '#fff';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = 'rgba(255,255,255,0.35)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+            }}
           >
             ← Back
           </button>

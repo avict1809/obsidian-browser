@@ -244,10 +244,42 @@ export default function App() {
       setShowDownloads(true);
     });
 
+    api.on('browser-shortcut', action => {
+      switch (action) {
+        case 'new-tab':          addTab(); break;
+        case 'close-tab':        closeTab(activeId); break;
+        case 'reload':           reload(); break;
+        case 'focus-urlbar':     document.dispatchEvent(new CustomEvent('focus-urlbar')); break;
+        case 'toggle-history':   setShowHistory(v => !v); setShowDownloads(false); break;
+        case 'toggle-downloads': setShowDownloads(v => !v); setShowHistory(false); break;
+        case 'lock-browser':     setLocked(true); break;
+        case 'go-back':          goBack(); break;
+        case 'go-forward':       goForward(); break;
+        case 'prev-tab': {
+          setTabs(ts => {
+            const idx = ts.findIndex(t => t.id === activeId);
+            const n = (idx - 1 + ts.length) % ts.length;
+            setActiveId(ts[n].id);
+            return ts;
+          });
+          break;
+        }
+        case 'next-tab': {
+          setTabs(ts => {
+            const idx = ts.findIndex(t => t.id === activeId);
+            const n = (idx + 1) % ts.length;
+            setActiveId(ts[n].id);
+            return ts;
+          });
+          break;
+        }
+      }
+    });
+
     return () => {
-      ['window-state','open-new-tab','download-progress','download-done'].forEach(c => api.off(c));
+      ['window-state','open-new-tab','download-progress','download-done', 'browser-shortcut'].forEach(c => api.off(c));
     };
-  }, [addTab]);
+  }, [addTab, activeId, closeTab, reload, goBack, goForward]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
@@ -262,6 +294,7 @@ export default function App() {
       if (mod && e.key === 'l') { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
       if (mod && e.key === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
       if (mod && e.key === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
+      if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); setLocked(true); }
       if (mod && e.shiftKey && e.key === 'H') { e.preventDefault(); goBack(); }
       if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); goForward(); }
       if (e.altKey && e.key === 'ArrowLeft') goBack();
@@ -391,14 +424,17 @@ export default function App() {
             title={isMaximized ? 'Restore' : 'Maximize'} />
         </div>
 
-        {/* Tabs */}
-        <div style={{ flex: 1, display: 'flex', gap: 4, overflow: 'hidden', alignItems: 'center', WebkitAppRegion: 'no-drag', appRegion: 'no-drag' }}>
+        {/* Tabs container - no-drag because we want clicks to work */}
+        <div style={{ display: 'flex', gap: 4, overflow: 'hidden', alignItems: 'center', WebkitAppRegion: 'no-drag', appRegion: 'no-drag' }}>
           {tabs.map(tab => (
             <Tab key={tab.id} tab={tab} isActive={tab.id === activeId}
               onActivate={() => setActiveId(tab.id)}
               onClose={() => closeTab(tab.id)} />
           ))}
         </div>
+
+        {/* Draggable spacer to fill empty space and allow window dragging */}
+        <div style={{ flex: 1, height: '100%', WebkitAppRegion: 'drag', appRegion: 'drag' }} />
 
         {/* New tab button */}
         <div style={{ WebkitAppRegion: 'no-drag', appRegion: 'no-drag' }}>

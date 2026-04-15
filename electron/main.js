@@ -239,6 +239,37 @@ app.whenReady().then(() => {
         newWindow.setMenuBarVisibility(false);
       });
 
+      // ── Intercept browser shortcuts while webview has focus ────────────────
+      // When a <webview> has keyboard focus, Electron's renderer window never
+      // receives keydown events, so shortcuts like Ctrl+T stop working.
+      // before-input-event fires in the MAIN process before the page sees the
+      // key, letting us forward our shortcuts to the renderer.
+      contents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown') return;
+        const ctrl = input.control || input.meta;
+        const shift = input.shift;
+        const key   = input.key.toLowerCase();
+
+        let action = null;
+
+        if (ctrl  && key === 't')   action = 'new-tab';
+        if (ctrl  && key === 'w')   action = 'close-tab';
+        if (ctrl  && key === 'r')   action = 'reload';
+        if (ctrl  && key === 'l')   action = 'focus-urlbar';
+        if (ctrl  && key === 'h')   action = 'toggle-history';
+        if (ctrl  && key === 'j')   action = 'toggle-downloads';
+        if (ctrl  && shift && key === 'l') action = 'lock-browser';
+        if (ctrl  && key === 'tab' &&  shift) action = 'prev-tab';
+        if (ctrl  && key === 'tab' && !shift) action = 'next-tab';
+        if (input.alt && key === 'arrowleft')  action = 'go-back';
+        if (input.alt && key === 'arrowright') action = 'go-forward';
+
+        if (action) {
+          event.preventDefault();
+          mainWindow?.webContents.send('browser-shortcut', action);
+        }
+      });
+
       // Forward navigation events to renderer for URL bar updates
       contents.on('did-navigate', (e, url) => {
         mainWindow?.webContents.send('webview-navigated', { url, id: contents.id });

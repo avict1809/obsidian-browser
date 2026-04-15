@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'webview-loading', 'webview-error',
       'open-new-tab',
       'download-progress', 'download-done',
+      'browser-shortcut',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => cb(...args));
