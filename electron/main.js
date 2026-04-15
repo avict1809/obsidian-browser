@@ -142,6 +142,11 @@ ipcMain.handle('clear-data', async () => {
 
 // ── App lifecycle ──────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  // Remove the default application menu entirely.
+  // This prevents Electron's built-in Ctrl+W from closing the whole window.
+  // Our renderer handles Ctrl+W to close only the active tab.
+  Menu.setApplicationMenu(null);
+
   // Suppress unhandled errors from webview internals
   process.on('uncaughtException', (error) => {
     if (error && (
@@ -168,11 +173,32 @@ app.whenReady().then(() => {
   // Allow webview to use the same persistent session
   app.on('web-contents-created', (_, contents) => {
     if (contents.getType() === 'webview') {
-      // Security: prevent webviews from opening new windows without our control
-      contents.setWindowOpenHandler(({ url }) => {
-        // Send to renderer to open in new tab instead
+      // Handle new windows: allow popups (needed for OAuth) but route link clicks to tabs
+      contents.setWindowOpenHandler(({ url, disposition, features }) => {
+        // Popup windows (window.open with features, or 'new-window' disposition)
+        // These are typically OAuth flows, payment modals, consent forms, etc.
+        // They MUST open as real windows so window.opener/postMessage works.
+        if (disposition === 'new-window' || (features && features.length > 0)) {
+          return {
+            action: 'allow',
+            overrideBrowserWindowOptions: {
+              backgroundColor: '#0a0a0b',
+              autoHideMenuBar: true,
+              webPreferences: {
+                partition: PARTITION,  // Share cookies/sessions with main webviews
+              },
+            },
+          };
+        }
+        // Regular link clicks (target="_blank") → open in a new tab
         mainWindow?.webContents.send('open-new-tab', url);
         return { action: 'deny' };
+      });
+
+      // When a popup window is created, apply content protection to it too
+      contents.on('did-create-window', (newWindow) => {
+        newWindow.setContentProtection(true);
+        newWindow.setMenuBarVisibility(false);
       });
 
       // Forward navigation events to renderer for URL bar updates
