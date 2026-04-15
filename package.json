@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A clean, dark Electron browser with persistent sessions",
   "main": "electron/main.js",
+  "author": "Obsidian Team",
   "scripts": {
     "dev": "cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build:renderer": "vite build",
@@ -22,6 +23,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "assets/**/*",
       "package.json"
     ],
     "mac": {
@@ -39,7 +41,9 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Obsidian-Windows-${version}.${ext}"
+      "artifactName": "Obsidian-Windows-${version}.${ext}",
+      "sign": null,
+      "verifyUpdateCodeSignature": false
     },
     "linux": {
       "target": [
