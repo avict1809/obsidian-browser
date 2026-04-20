@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWebviewPreloadPath: () => ipcRenderer.invoke('get-webview-preload-path'),
   readFileText: (path) => ipcRenderer.invoke('read-file-text', path),
   checkMatchingSubtitle: (vPath) => ipcRenderer.invoke('check-matching-subtitle', vPath),
+  toggleDevTools: () => ipcRenderer.send('window-toggle-devtools'),
 
   // Webview session setup
   setupWebviewSession: (id) => ipcRenderer.send('setup-webview-session', id),

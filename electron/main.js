@@ -85,6 +85,7 @@ ipcMain.on('window-minimize',  () => mainWindow?.minimize());
 ipcMain.on('window-maximize',  () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize());
 ipcMain.on('window-close',     () => mainWindow?.close());
 ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
+ipcMain.on('window-toggle-devtools', () => mainWindow?.webContents.toggleDevTools());
 
 // ── IPC: Open external links in system browser ─────────────────────────────
 ipcMain.on('open-external', (_, url) => shell.openExternal(url));
@@ -200,16 +201,20 @@ ipcMain.on('page-dialog-sync', (event, { type, message, defaultValue }) => {
     });
     event.returnValue = (choice === 1);
   } else if (type === 'prompt') {
-    // Electron has no native synchronous prompt.
-    // We use a simple message box to alert the user for now.
-    // In a future update, we can implement a custom synchronous window.
-    dialog.showMessageBoxSync(mainWindow, {
-      type: 'info',
-      title: 'Prompt Request',
-      message: `The website requested a prompt: "${message}"\n\nNote: Synchronous prompts are currently being upgraded. Returning default value.`,
-      buttons: ['OK']
-    });
-    event.returnValue = defaultValue || '';
+    // For a "Good Prompt" on Windows, we can use a small PowerShell snippet
+    // to show a real input box synchronously.
+    const { execSync } = require('child_process');
+    const escapedMsg = message.replace(/'/g, "''");
+    const escapedDef = (defaultValue || "").replace(/'/g, "''");
+    const psCommand = `[void][System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic'); [Microsoft.VisualBasic.Interaction]::InputBox('${escapedMsg}', 'Obsidian Browser', '${escapedDef}')`;
+    
+    try {
+      const result = execSync(`powershell -Command "${psCommand}"`, { encoding: 'utf8' }).trim();
+      event.returnValue = result;
+    } catch (err) {
+      console.error('Prompt error:', err);
+      event.returnValue = defaultValue || '';
+    }
   } else {
     event.returnValue = null;
   }
@@ -336,10 +341,12 @@ app.whenReady().then(() => {
         if (ctrl  && key === 'l')   action = 'focus-urlbar';
         if (ctrl  && key === 'h')   action = 'toggle-history';
         if (ctrl  && key === 'j')   action = 'toggle-downloads';
+        if (ctrl  && key === 'k')   action = 'toggle-console';
         if (ctrl  && shift && key === 'l') action = 'lock-browser';
         if (ctrl  && key === 'tab' &&  shift) action = 'prev-tab';
         if (ctrl  && key === 'tab' && !shift) action = 'next-tab';
         if (ctrl  && shift && key === 'x') action = 'peek-link';
+        if (ctrl  && shift && key === 'i') action = 'toggle-devtools';
         if (ctrl  && key === 'o')   action = 'open-file';
         if (ctrl  && key === 'u')   action = 'load-subtitles';
         if (input.alt && key === 'arrowleft')  action = 'go-back';

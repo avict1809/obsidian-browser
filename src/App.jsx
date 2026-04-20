@@ -20,6 +20,7 @@ function createTab(url = 'about:newtab') {
     error: null,
     hasVideo: false,
     videoTracks: [], // { id, label, language, active }
+    logs: [],        // { type: 'log'|'warn'|'error', message, time }
   };
 }
 
@@ -134,6 +135,94 @@ function HistoryPanel({ onNavigate, onClose }) {
   );
 }
 
+// ─── Console Panel ────────────────────────────────────────────────────────────
+
+function ConsolePanel({ logs, onExecute, onClear, onClose }) {
+  const [input, setInput] = useState('');
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (endRef.current) {
+        endRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  const handleSubmit = (e) => {
+    if (e.key === 'Enter' && input.trim()) {
+      onExecute(input);
+      setInput('');
+    }
+  };
+
+  return (
+    <div style={{
+      height: 240, background: 'var(--bg-base)', borderTop: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10,
+    }}>
+      {/* Console Header */}
+      <div style={{
+        padding: '6px 12px', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="search" size={12} color="var(--amber)" />
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Console</span>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={onClear} style={{
+            background: 'none', border: 'none', padding: '2px 8px', fontSize: 10,
+            color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-mono)'
+          }} onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+            clear()
+          </button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
+            <Icon name="close" size={12} color="currentColor" />
+          </button>
+        </div>
+      </div>
+
+      {/* Logs Area */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+        {logs.length === 0 ? (
+          <div style={{ color: 'var(--text-muted)', opacity: 0.5, fontStyle: 'italic' }}>No logs recorded.</div>
+        ) : logs.map((log, i) => (
+          <div key={i} style={{
+            display: 'flex', gap: 10, padding: '2px 0',
+            borderBottom: '1px solid rgba(255,255,255,0.02)',
+            color: log.type === 'error' ? '#ff6b6b' : log.type === 'warn' ? '#ffd43b' : 'var(--text-secondary)',
+          }}>
+            <span style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }}>[{log.time}]</span>
+            <span style={{ flex: 1, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{log.message}</span>
+            <span style={{ color: 'var(--text-muted)', opacity: 0.3, fontSize: 10, flexShrink: 0 }}>{log.source}:{log.line}</span>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+
+      {/* Input Area */}
+      <div style={{
+        padding: '8px 12px', background: 'var(--bg-surface)', borderTop: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{ color: 'var(--amber)', fontSize: 14, fontWeight: 'bold' }}>›</span>
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleSubmit}
+          placeholder="Execute JavaScript..."
+          style={{
+            flex: 1, background: 'none', border: 'none', outline: 'none',
+            fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)',
+          }}
+          autoFocus
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Browser Window ───────────────────────────────────────────────────────────
 
 export default function App() {
@@ -150,6 +239,7 @@ export default function App() {
   const [webviewPreload, setWebviewPreload] = useState('');
   const [showTrackMenu, setShowTrackMenu]   = useState(false);
   const [pageAlert, setPageAlert]           = useState(null); // { message, tabId }
+  const [showConsole, setShowConsole]       = useState(false);
 
 
   const webviewRefs     = useRef({});
@@ -385,6 +475,12 @@ export default function App() {
         case 'peek-link':       triggerPeek(); break;
         case 'open-file':       openFile(); break;
         case 'load-subtitles':  loadSubtitles(activeId); break;
+        case 'toggle-console':  setShowConsole(v => !v); break;
+        case 'toggle-devtools': {
+          const wv = webviewRefs.current[activeId];
+          if (wv) wv.openDevTools();
+          break;
+        }
       }
     });
 
@@ -408,7 +504,9 @@ export default function App() {
       if (mod && e.key === 'l') { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
       if (mod && e.key === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
       if (mod && e.key === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
+      if (mod && e.key === 'k') { e.preventDefault(); setShowConsole(v => !v); }
       if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); setLocked(true); }
+      if (mod && e.shiftKey && e.key === 'I') { e.preventDefault(); api.toggleDevTools?.() || alert("Use context menu or menu bar to open devtools for the shell."); }
       if (mod && e.shiftKey && e.key === 'H') { e.preventDefault(); goBack(); }
       if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); goForward(); }
       if (e.altKey && e.key === 'ArrowLeft') goBack();
@@ -520,6 +618,18 @@ export default function App() {
       } else if (e.channel === 'page-alert') {
         setPageAlert({ message: e.args[0], tabId });
       }
+    });
+
+    wv.addEventListener('console-message', e => {
+      const type = ['log', 'info', 'warn', 'error'][e.level] || 'log';
+      const log = {
+        type,
+        message: e.message,
+        source: e.sourceId?.split('/').pop() || 'vm',
+        line: e.line,
+        time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      };
+      setTabs(ts => ts.map(t => t.id === tabId ? { ...t, logs: [...(t.logs || []), log].slice(-500) } : t));
     });
 
 
@@ -744,6 +854,21 @@ export default function App() {
               )}
             </div>
           ))}
+
+          {/* Integrated Console Panel */}
+          {showConsole && (
+            <ConsolePanel
+              logs={activeTab.logs || []}
+              onExecute={code => {
+                const wv = webviewRefs.current[activeId];
+                if (wv) wv.executeJavaScript(code);
+                // Also add to console logs locally to show it was sent
+                setTabs(ts => ts.map(t => t.id === activeId ? { ...t, logs: [...(t.logs || []), { type: 'info', message: '> ' + code, source: 'shell', time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }] } : t));
+              }}
+              onClear={() => setTabs(ts => ts.map(t => t.id === activeId ? { ...t, logs: [] } : t))}
+              onClose={() => setShowConsole(false)}
+            />
+          )}
         </div>
 
         {/* ── Peek Overlay ── */}
