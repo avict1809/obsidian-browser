@@ -144,7 +144,7 @@ export default function App() {
   const [showDownloads, setShowDownloads] = useState(false);
   const [downloads, setDownloads]     = useState([]);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [hoveredUrl, setHoveredUrl]   = useState(null);
+  const hoveredUrlRef                 = useRef(null);
   const [hoverBubble, setHoverBubble] = useState(null); // { url, x, y }
   const [peek, setPeek]               = useState({ show: false, url: '' });
   const [webviewPreload, setWebviewPreload] = useState('');
@@ -318,10 +318,11 @@ export default function App() {
   }, [activeId]);
 
   const triggerPeek = useCallback(() => {
-    if (hoveredUrl) {
-      setPeek({ show: true, url: hoveredUrl });
+    if (hoveredUrlRef.current) {
+      setPeek({ show: true, url: hoveredUrlRef.current });
+      setHoverBubble(null);
     }
-  }, [hoveredUrl]);
+  }, []);
 
   // ── Electron IPC listeners ─────────────────────────────────────────────────
 
@@ -512,7 +513,7 @@ export default function App() {
 
     wv.addEventListener('ipc-message', e => {
       if (e.channel === 'hover-link') {
-        setHoveredUrl(e.args[0]);
+        hoveredUrlRef.current = e.args[0];
       } else if (e.channel === 'hover-link-bubble') {
         // Only show if we're not already peeking
         if (!peek.show) setHoverBubble(e.args[0]);
@@ -748,17 +749,17 @@ export default function App() {
         {/* ── Peek Overlay ── */}
         {peek.show && (
           <div style={{
-            position: 'absolute', inset: 0, zIndex: 1000,
+            position: 'absolute', inset: 0, zIndex: 10000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)',
-            animation: 'fadeIn 0.2s ease',
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)',
+            animation: 'fadeIn 0.2s ease forwards',
           }} onClick={() => setPeek({ show: false, url: '' })}>
             <div style={{
               width: '85%', height: '80%', background: '#0a0a0b',
               borderRadius: 16, border: '1px solid var(--border-hover)',
               boxShadow: '0 25px 60px rgba(0,0,0,0.8)',
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
-              animation: 'peekIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              animation: 'peekIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
             }} onClick={e => e.stopPropagation()}>
               {/* Header */}
               <div style={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
