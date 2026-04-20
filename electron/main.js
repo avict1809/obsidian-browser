@@ -186,6 +186,36 @@ ipcMain.handle('clear-data', async () => {
   return true;
 });
 
+// ── IPC: Page Dialogs (Synchronous) ────────────────────────────────────────
+ipcMain.on('page-dialog-sync', (event, { type, message, defaultValue }) => {
+  if (type === 'confirm') {
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      buttons: ['Cancel', 'OK'],
+      defaultId: 1,
+      cancelId: 0,
+      title: 'Obsidian Browser',
+      message: message,
+      noLink: true,
+    });
+    event.returnValue = (choice === 1);
+  } else if (type === 'prompt') {
+    // Electron has no native synchronous prompt.
+    // We use a simple message box to alert the user for now.
+    // In a future update, we can implement a custom synchronous window.
+    dialog.showMessageBoxSync(mainWindow, {
+      type: 'info',
+      title: 'Prompt Request',
+      message: `The website requested a prompt: "${message}"\n\nNote: Synchronous prompts are currently being upgraded. Returning default value.`,
+      buttons: ['OK']
+    });
+    event.returnValue = defaultValue || '';
+  } else {
+    event.returnValue = null;
+  }
+});
+
+
 // ── IPC: Auth / PIN lock ───────────────────────────────────────────────────
 let _authFilePath = null;
 function getAuthFilePath() {

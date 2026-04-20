@@ -1,5 +1,20 @@
 const { ipcRenderer } = require('electron');
 
+// Sync/Async dialog bridge
+window.alert = (message) => {
+  // Alert is async to the host for a beautiful tab-modal UI
+  ipcRenderer.sendToHost('page-alert', String(message));
+};
+window.confirm = (message) => {
+  // Confirm and Prompt must be sync for script execution to wait
+  return ipcRenderer.sendSync('page-dialog-sync', { type: 'confirm', message: String(message) });
+};
+window.prompt = (message, defaultValue) => {
+  return ipcRenderer.sendSync('page-dialog-sync', { type: 'prompt', message: String(message), defaultValue: String(defaultValue || '') });
+};
+
+
+
 window.addEventListener('DOMContentLoaded', () => {
   const handleMouseOver = (e) => {
     let target = e.target;

@@ -148,6 +148,8 @@ export default function App() {
   const [peek, setPeek]               = useState({ show: false, url: '' });
   const [webviewPreload, setWebviewPreload] = useState('');
   const [showTrackMenu, setShowTrackMenu]   = useState(false);
+  const [pageAlert, setPageAlert]           = useState(null); // { message, tabId }
+
 
   const webviewRefs     = useRef({});
   const attachedWebviews = useRef(new Set());
@@ -501,8 +503,11 @@ export default function App() {
     wv.addEventListener('ipc-message', e => {
       if (e.channel === 'hover-link') {
         setHoveredUrl(e.args[0]);
+      } else if (e.channel === 'page-alert') {
+        setPageAlert({ message: e.args[0], tabId });
       }
     });
+
 
     wv.addEventListener('dom-ready', () => {
       const id = wv.getWebContentsId?.();
@@ -831,7 +836,49 @@ export default function App() {
             </span>
           )}
         </div>
+        {/* ── Page Alert (Custom Browser Alert) ── */}
+        {pageAlert && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+            animation: 'fadeIn 0.2s ease',
+          }} onClick={() => setPageAlert(null)}>
+            <div style={{
+              width: 400, background: 'var(--bg-elevated)', borderRadius: 16,
+              border: '1px solid var(--border-hover)', boxShadow: '0 25px 60px rgba(0,0,0,0.8)',
+              padding: 24, display: 'flex', flexDirection: 'column', gap: 20,
+              animation: 'modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', background: 'rgba(232, 160, 48, 0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--amber)'
+                }}>
+                  <Icon name="history" size={18} color="currentColor" />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: 0.5 }}>Page Message</span>
+              </div>
+              
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, wordBreak: 'break-word' }}>
+                {pageAlert.message}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={() => setPageAlert(null)} style={{
+                  padding: '8px 24px', background: 'var(--amber)', color: '#000',
+                  border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >OK</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
