@@ -330,7 +330,7 @@ app.whenReady().then(() => {
         if (ctrl  && key === 'l')   action = 'focus-urlbar';
         if (ctrl  && key === 'h')   action = 'toggle-history';
         if (ctrl  && key === 'j')   action = 'toggle-downloads';
-        if (ctrl  && key === 'k')   action = 'toggle-console';
+        if (ctrl  && (key === 'k' || input.code === 'KeyK'))   action = 'toggle-console';
         if (ctrl  && shift && key === 'l') action = 'lock-browser';
         if (ctrl  && key === 'tab' &&  shift) action = 'prev-tab';
         if (ctrl  && key === 'tab' && !shift) action = 'next-tab';

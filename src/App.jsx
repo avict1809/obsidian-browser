@@ -290,6 +290,7 @@ export default function App() {
   const [showTrackMenu, setShowTrackMenu]   = useState(false);
   const [pageAlert, setPageAlert]           = useState(null); // { message, tabId }
   const [pagePrompt, setPagePrompt]         = useState(null); // { message, defaultValue, tabId, resolve }
+  const [dialogQueue, setDialogQueue]       = useState([]);   // [{ type, message, defaultValue, tabId, resolve }]
   const [showConsole, setShowConsole]       = useState(false);
   const [contextMenu, setContextMenu]       = useState(null); // { x, y, tabId, params }
 
@@ -537,12 +538,9 @@ export default function App() {
     });
 
     api.on('page-dialog-request', ({ type, message, defaultValue, id }) => {
-      const tab = tabs.find(t => t.id === activeId); // Simplification: active tab
-      if (type === 'alert') {
-        setPageAlert({ message, tabId: activeId });
-      } else if (type === 'prompt') {
-        setPagePrompt({ message, defaultValue, tabId: activeId, resolve: () => setPagePrompt(null) });
-      }
+      setDialogQueue(q => [...q, { type, message, defaultValue, tabId: activeId, resolve: (val) => {
+         // This is a bridge for main process triggered dialogs
+      }}]);
     });
 
     return () => {
@@ -563,9 +561,9 @@ export default function App() {
       if (mod && e.key === 'o') { e.preventDefault(); openFile(); }
       if (mod && e.key === 'u') { e.preventDefault(); loadSubtitles(activeId); }
       if (mod && e.key === 'l') { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
-      if (mod && e.key === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
-      if (mod && e.key === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
-      if (mod && e.key === 'k') { e.preventDefault(); setShowConsole(v => !v); setContextMenu(null); }
+      if (mod && e.key.toLowerCase() === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
+      if (mod && e.key.toLowerCase() === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
+      if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowConsole(v => !v); setContextMenu(null); }
       if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); setLocked(true); }
       if (mod && e.shiftKey && e.key === 'I') { e.preventDefault(); api.toggleDevTools?.() || alert("Use context menu or menu bar to open devtools for the shell."); }
       if (mod && e.shiftKey && e.key === 'H') { e.preventDefault(); goBack(); }
@@ -593,6 +591,29 @@ export default function App() {
       window.removeEventListener('mousedown', clickHandler);
     }
   }, [locked, activeId, tabs, addTab, closeTab, reload, goBack, goForward, triggerPeek, openFile, loadSubtitles]);
+
+  // Handle the dialog queue
+  useEffect(() => {
+    if (pageAlert || pagePrompt || dialogQueue.length === 0) return;
+    
+    const next = dialogQueue[0];
+    setDialogQueue(q => q.slice(1));
+
+    if (next.type === 'alert') {
+      setPageAlert({ 
+        message: next.message, 
+        tabId: next.tabId, 
+        resolve: () => { setPageAlert(null); if (next.resolve) next.resolve(); }
+      });
+    } else {
+      setPagePrompt({ 
+        message: next.message, 
+        defaultValue: next.defaultValue, 
+        tabId: next.tabId, 
+        resolve: (val) => { setPagePrompt(null); if (next.resolve) next.resolve(val); }
+      });
+    }
+  }, [pageAlert, pagePrompt, dialogQueue]);
 
   // ── Webview event wiring ───────────────────────────────────────────────────
 
@@ -681,17 +702,16 @@ export default function App() {
         const msg = String(e.args[0]);
         if (msg.startsWith('PROMPT:')) {
            const parts = msg.replace('PROMPT:', '').split('|||');
-           setPagePrompt({ message: parts[0], defaultValue: parts[1] || '', tabId, resolve: () => setPagePrompt(null) });
+           setDialogQueue(q => [...q, { type: 'prompt', message: parts[0], defaultValue: parts[1] || '', tabId, resolve: (val) => {
+             // Sync-like resolution would notify bridge here
+           }}]);
         } else {
-           setPageAlert({ message: msg, tabId });
+           setDialogQueue(q => [...q, { type: 'alert', message: msg, tabId }]);
         }
       } else if (e.channel === 'page-prompt') {
-        setPagePrompt({ 
-          message: e.args[0], 
-          defaultValue: e.args[1], 
-          tabId,
-          resolve: (val) => { setPagePrompt(null); }
-        });
+        setDialogQueue(q => [...q, { type: 'prompt', message: e.args[0], defaultValue: e.args[1], tabId, resolve: (val) => {
+           // Sync-like resolution
+        }}]);
       }
     });
 
