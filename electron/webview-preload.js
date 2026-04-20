@@ -28,13 +28,21 @@ webFrame.executeJavaScript(`
 let hoverTimer = null;
 let currentHoverUrl = null;
 
+let clearTimer = null;
+
 function stopHover() {
   if (hoverTimer) {
     clearTimeout(hoverTimer);
     hoverTimer = null;
   }
   currentHoverUrl = null;
-  ipcRenderer.sendToHost('hover-link-bubble', null);
+  
+  // Don't clear the bubble immediately on mouse out. 
+  // Give the user 2 seconds to reach it.
+  if (clearTimer) clearTimeout(clearTimer);
+  clearTimer = setTimeout(() => {
+    ipcRenderer.sendToHost('hover-link-bubble', null);
+  }, 2000);
 }
 
 window.addEventListener('mouseover', (e) => {
@@ -47,6 +55,11 @@ window.addEventListener('mouseover', (e) => {
     const href = target.href;
     if (!href || href.startsWith('javascript:')) return;
     
+    if (clearTimer) {
+        clearTimeout(clearTimer);
+        clearTimer = null;
+    }
+
     // Always update status bar immediately
     ipcRenderer.sendToHost('hover-link', href);
 
@@ -68,19 +81,32 @@ window.addEventListener('mouseover', (e) => {
       }, 5000);
     }
   } else {
-    ipcRenderer.sendToHost('hover-link', null);
-    stopHover();
+    // Delay clearing the hovered URL for 1 second 
+    // so Ctrl+Shift+X still works if mouse just left the link.
+    if (!clearTimer) {
+        clearTimer = setTimeout(() => {
+            ipcRenderer.sendToHost('hover-link', null);
+            stopHover();
+        }, 1000);
+    }
   }
 });
 
 window.addEventListener('mouseout', (e) => {
-  // If we're moving between elements within the same link, don't stop
+  // We handle clearing in mouseover with a delay, so just ensure 
+  // we don't clear instantly here unless we're actually leaving to a non-link.
   let target = e.relatedTarget;
   while (target && target.tagName !== 'A') {
     target = target.parentElement;
   }
   if (!target || target.href !== currentHoverUrl) {
-    stopHover();
+    // Start the delayed clear
+    if (!clearTimer) {
+        clearTimer = setTimeout(() => {
+            ipcRenderer.sendToHost('hover-link', null);
+            stopHover();
+        }, 1000);
+    }
   }
 });
 

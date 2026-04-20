@@ -45,4 +45,5 @@ html, body, #root {
 @keyframes dotScale     { from{transform:scale(0)} to{transform:scale(1)} }
 @keyframes slideInRight { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:none} }
 @keyframes modalIn    { from { opacity: 0; transform: scale(0.95) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes peekIn     { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 

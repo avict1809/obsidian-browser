@@ -420,8 +420,13 @@ export default function App() {
         setActiveId(tabs[next].id);
       }
     };
+    const clickHandler = () => setHoverBubble(null);
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('mousedown', clickHandler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('mousedown', clickHandler);
+    }
   }, [locked, activeId, tabs, addTab, closeTab, reload, goBack, goForward]);
 
   // ── Webview event wiring ───────────────────────────────────────────────────
@@ -817,9 +822,9 @@ export default function App() {
               setHoverBubble(null);
             }}
             style={{
-              position: 'fixed',
-              left: hoverBubble.x + 15,
-              top: hoverBubble.y + 15,
+              position: 'absolute',
+              left: hoverBubble.x - 16,
+              top: hoverBubble.y - 16,
               zIndex: 9999,
               width: 32,
               height: 32,
