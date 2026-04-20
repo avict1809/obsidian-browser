@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, shell, dialog, webContents } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, shell, dialog, webContents, nativeTheme } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -53,6 +53,7 @@ function createWindow() {
       webviewTag: true,       // CRITICAL — enables <webview> in renderer
       preload: path.join(__dirname, 'preload.js'),
       session: session.fromPartition(PARTITION),
+      plugins: true,          // Enable PDF viewer and other plugins
     },
   });
 
@@ -87,6 +88,49 @@ ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 
 // ── IPC: Open external links in system browser ─────────────────────────────
 ipcMain.on('open-external', (_, url) => shell.openExternal(url));
+ipcMain.handle('open-file-dialog', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'Media & Documents', extensions: ['pdf', 'mp4', 'webm', 'ogg', 'mkv', 'avi', 'mov'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  if (canceled) return null;
+  return filePaths[0];
+});
+ipcMain.handle('get-webview-preload-path', () => {
+  return `file://${path.join(__dirname, 'webview-preload.js')}`;
+});
+
+ipcMain.handle('read-file-text', async (_, filePath) => {
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    console.error('Failed to read file:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('check-matching-subtitle', async (_, videoPath) => {
+  try {
+    // videoPath is a file path (not URI)
+    const dir = path.dirname(videoPath);
+    const ext = path.extname(videoPath);
+    const base = path.basename(videoPath, ext);
+    
+    const possibleSubtitles = ['.vtt', '.srt'];
+    for (const subExt of possibleSubtitles) {
+      const subPath = path.join(dir, base + subExt);
+      if (fs.existsSync(subPath)) {
+        return { path: subPath, content: fs.readFileSync(subPath, 'utf8'), type: subExt.substring(1) };
+      }
+    }
+  } catch (err) {
+    console.error('Auto-detect error:', err);
+  }
+  return null;
+});
 
 // ── IPC: Download handling ─────────────────────────────────────────────────
 // Use a WeakSet to track which sessions already have download listeners
@@ -180,6 +224,10 @@ ipcMain.handle('auth-set-password', (_, pin) => {
 
 // ── App lifecycle ──────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  // Set default theme to light so that web content (prefers-color-scheme) 
+  // doesn't automatically switch to dark mode. The browser shell remains dark.
+  nativeTheme.themeSource = 'light';
+
   // Remove the default application menu entirely.
   // This prevents Electron's built-in Ctrl+W from closing the whole window.
   // Our renderer handles Ctrl+W to close only the active tab.
@@ -261,6 +309,9 @@ app.whenReady().then(() => {
         if (ctrl  && shift && key === 'l') action = 'lock-browser';
         if (ctrl  && key === 'tab' &&  shift) action = 'prev-tab';
         if (ctrl  && key === 'tab' && !shift) action = 'next-tab';
+        if (ctrl  && shift && key === 'x') action = 'peek-link';
+        if (ctrl  && key === 'o')   action = 'open-file';
+        if (ctrl  && key === 'u')   action = 'load-subtitles';
         if (input.alt && key === 'arrowleft')  action = 'go-back';
         if (input.alt && key === 'arrowright') action = 'go-forward';
 

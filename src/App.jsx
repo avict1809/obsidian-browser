@@ -18,7 +18,18 @@ function createTab(url = 'about:newtab') {
     canGoBack: false,
     canGoForward: false,
     error: null,
+    hasVideo: false,
+    videoTracks: [], // { id, label, language, active }
   };
+}
+
+// ─── Subtitle Utils ───────────────────────────────────────────────────────────
+
+function srtToVtt(srtText) {
+  let vtt = 'WEBVTT\n\n' + srtText;
+  // Replace all commas in timestamps like 00:00:20,000 with dots 00:00:20.000
+  vtt = vtt.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+  return vtt;
 }
 
 // ─── History Panel ────────────────────────────────────────────────────────────
@@ -133,6 +144,10 @@ export default function App() {
   const [showDownloads, setShowDownloads] = useState(false);
   const [downloads, setDownloads]     = useState([]);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [hoveredUrl, setHoveredUrl]   = useState(null);
+  const [peek, setPeek]               = useState({ show: false, url: '' });
+  const [webviewPreload, setWebviewPreload] = useState('');
+  const [showTrackMenu, setShowTrackMenu]   = useState(false);
 
   const webviewRefs     = useRef({});
   const attachedWebviews = useRef(new Set());
@@ -216,12 +231,102 @@ export default function App() {
     if (wv) wv.reload();
   }, [activeId]);
 
+  const openFile = useCallback(async () => {
+    const filePath = await window.electronAPI?.openFileDialog();
+    if (filePath) {
+      const url = `file://${filePath}`;
+      navigate(url, activeId);
+      // Give it a moment to load then try auto-detect
+      setTimeout(() => autoDetectSubtitles(filePath, activeId), 1000);
+    }
+  }, [activeId, navigate]);
+
+  const loadSubtitles = useCallback(async (tabId) => {
+    const tid = tabId ?? activeId;
+    const wv = webviewRefs.current[tid];
+    if (!wv) return;
+
+    const filePath = await window.electronAPI?.openFileDialog();
+    if (!filePath) return;
+
+    let content = await window.electronAPI?.readFileText(filePath);
+    if (!content) return;
+
+    if (filePath.toLowerCase().endsWith('.srt')) {
+      content = srtToVtt(content);
+    }
+    
+    applySubtitles(wv, content);
+  }, [activeId]);
+
+  const autoDetectSubtitles = useCallback(async (videoPath, tabId) => {
+    const res = await window.electronAPI?.checkMatchingSubtitle(videoPath);
+    if (res && res.content) {
+      const wv = webviewRefs.current[tabId];
+      if (wv) {
+        let content = res.content;
+        if (res.type === 'srt') content = srtToVtt(content);
+        applySubtitles(wv, content);
+      }
+    }
+  }, []);
+
+  const applySubtitles = (wv, vttContent) => {
+    const base64 = btoa(unescape(encodeURIComponent(vttContent)));
+    const dataUri = `data:text/vtt;base64,${base64}`;
+    const code = `
+      (function() {
+        const v = document.querySelector('video');
+        if (!v) return false;
+        const existing = v.querySelectorAll('track[label="External"]');
+        existing.forEach(t => t.remove());
+        const track = document.createElement('track');
+        track.kind = 'subtitles';
+        track.label = 'External';
+        track.srclang = 'en';
+        track.src = '${dataUri}';
+        track.default = true;
+        v.appendChild(track);
+        if (v.textTracks && v.textTracks.length > 0) {
+          for (let i=0; i<v.textTracks.length; i++) {
+            v.textTracks[i].mode = (v.textTracks[i].label === 'External') ? 'showing' : 'disabled';
+          }
+        }
+        return true;
+      })()
+    `;
+    wv.executeJavaScript(code);
+  };
+
+  const selectInternalTrack = useCallback((trackId) => {
+    const wv = webviewRefs.current[activeId];
+    if (!wv) return;
+    const code = `
+      (function() {
+        const v = document.querySelector('video');
+        if (!v) return;
+        for (let i=0; i<v.textTracks.length; i++) {
+          v.textTracks[i].mode = (i === ${trackId}) ? 'showing' : 'disabled';
+        }
+      })()
+    `;
+    wv.executeJavaScript(code);
+    setShowTrackMenu(false);
+  }, [activeId]);
+
+  const triggerPeek = useCallback(() => {
+    if (hoveredUrl) {
+      setPeek({ show: true, url: hoveredUrl });
+    }
+  }, [hoveredUrl]);
+
   // ── Electron IPC listeners ─────────────────────────────────────────────────
 
   useEffect(() => {
     const api = window.electronAPI;
     if (!api) return;
 
+    api.getWebviewPreloadPath().then(setWebviewPreload);
     api.isMaximized().then(setIsMaximized);
     api.on('window-state', state => setIsMaximized(state === 'maximized'));
     api.on('open-new-tab', url => addTab(url));
@@ -273,6 +378,9 @@ export default function App() {
           });
           break;
         }
+        case 'peek-link':       triggerPeek(); break;
+        case 'open-file':       openFile(); break;
+        case 'load-subtitles':  loadSubtitles(activeId); break;
       }
     });
 
@@ -291,6 +399,8 @@ export default function App() {
       if (mod && e.key === 't') { e.preventDefault(); addTab(); }
       if (mod && e.key === 'w') { e.preventDefault(); closeTab(activeId); }
       if (mod && e.key === 'r') { e.preventDefault(); reload(); }
+      if (mod && e.key === 'o') { e.preventDefault(); openFile(); }
+      if (mod && e.key === 'u') { e.preventDefault(); loadSubtitles(activeId); }
       if (mod && e.key === 'l') { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
       if (mod && e.key === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
       if (mod && e.key === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
@@ -320,8 +430,27 @@ export default function App() {
     let lastUrl   = '';
     let lastTitle = '';
 
-    wv.addEventListener('did-start-loading', () => updateTab(tabId, { loading: true, error: null }));
-    wv.addEventListener('did-stop-loading',  () => updateTab(tabId, { loading: false }));
+    wv.addEventListener('did-start-loading', () => updateTab(tabId, { loading: true, error: null, hasVideo: false }));
+    wv.addEventListener('did-stop-loading',  () => {
+      updateTab(tabId, { loading: false });
+      // Check for video element and internal tracks after load
+      const checkCode = `
+        (function() {
+          const v = document.querySelector('video');
+          if (!v) return { hasVideo: false, tracks: [] };
+          const tracks = Array.from(v.textTracks).map((t, i) => ({
+            id: i,
+            label: t.label || 'Track ' + (i + 1),
+            language: t.language,
+            mode: t.mode
+          }));
+          return { hasVideo: true, tracks };
+        })()
+      `;
+      wv.executeJavaScript(checkCode).then(res => {
+        updateTab(tabId, { hasVideo: res.hasVideo, videoTracks: res.tracks });
+      });
+    });
 
     wv.addEventListener('did-finish-load', () => {
       const url = wv.getURL();
@@ -368,6 +497,12 @@ export default function App() {
     });
 
     wv.addEventListener('new-window', e => addTab(e.url));
+
+    wv.addEventListener('ipc-message', e => {
+      if (e.channel === 'hover-link') {
+        setHoveredUrl(e.args[0]);
+      }
+    });
 
     wv.addEventListener('dom-ready', () => {
       const id = wv.getWebContentsId?.();
@@ -474,6 +609,58 @@ export default function App() {
           title="Downloads (Ctrl+J)"
           active={showDownloads}
         />
+        {/* Subtitles button (conditional) */}
+        {activeTab.hasVideo && (
+          <div style={{ position: 'relative' }}>
+            <TBtn
+              icon="subtitles"
+              onClick={() => setShowTrackMenu(v => !v)}
+              title="Subtitle settings (Ctrl+U)"
+              active={showTrackMenu}
+            />
+            
+            {showTrackMenu && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 8,
+                width: 220, background: 'var(--bg-elevated)', border: '1px solid var(--border-hover)',
+                borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', zIndex: 100,
+                padding: '6px 0', animation: 'slideDown 0.15s ease'
+              }}>
+                <div style={{ padding: '8px 14px', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Internal Tracks
+                </div>
+                {activeTab.videoTracks.length === 0 ? (
+                  <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--text-muted)' }}>None detected</div>
+                ) : activeTab.videoTracks.map(t => (
+                  <button key={t.id} onClick={() => selectInternalTrack(t.id)} style={{
+                    width: '100%', padding: '8px 14px', background: 'none', border: 'none',
+                    textAlign: 'left', color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8
+                  }} 
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <Icon name="globe" size={12} color="var(--text-muted)" />
+                    {t.label} {t.language ? `(${t.language})` : ''}
+                  </button>
+                ))}
+                
+                <div style={{ margin: '6px 0', borderTop: '1px solid var(--border)' }} />
+                
+                <button onClick={() => { loadSubtitles(activeId); setShowTrackMenu(false); }} style={{
+                  width: '100%', padding: '10px 14px', background: 'none', border: 'none',
+                  textAlign: 'left', color: 'var(--amber)', fontSize: 13, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8
+                }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <Icon name="plus" size={12} color="currentColor" /> Load External File...
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {/* Lock button */}
         <TBtn
           icon="lock"
@@ -529,7 +716,9 @@ export default function App() {
                   }}
                   src={tab.initialUrl}
                   partition="persist:obsidian"
-                  style={{ width: '100%', height: '100%', border: 'none', display: 'flex' }}
+                  preload={webviewPreload}
+                  plugins="true"
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'flex', background: '#fff' }}
                   allowpopups="true"
                   webpreferences="contextIsolation=yes"
                 />
@@ -537,6 +726,55 @@ export default function App() {
             </div>
           ))}
         </div>
+
+        {/* ── Peek Overlay ── */}
+        {peek.show && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)',
+            animation: 'fadeIn 0.2s ease',
+          }} onClick={() => setPeek({ show: false, url: '' })}>
+            <div style={{
+              width: '85%', height: '80%', background: '#0a0a0b',
+              borderRadius: 16, border: '1px solid var(--border-hover)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.8)',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              animation: 'peekIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }} onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div style={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden', flex: 1 }}>
+                  <Icon name="globe" size={14} color="var(--amber)" />
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{peek.url}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { addTab(peek.url); setPeek({ show: false, url: '' }); }} style={{
+                    background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 6,
+                    padding: '4px 12px', fontSize: 11, color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+                  }}>
+                    <Icon name="plus" size={12} color="currentColor" /> Open in Tab
+                  </button>
+                  <button onClick={() => setPeek({ show: false, url: '' })} style={{
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 6, borderRadius: 6, display: 'flex'
+                  }} onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                    <Icon name="close" size={16} color="currentColor" />
+                  </button>
+                </div>
+              </div>
+              {/* Content */}
+              <div style={{ flex: 1, position: 'relative' }}>
+                <webview
+                  src={peek.url}
+                  partition="persist:obsidian"
+                  plugins="true"
+                  style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+                  webpreferences="contextIsolation=yes"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Right side panels ── */}
         {showHistory && (

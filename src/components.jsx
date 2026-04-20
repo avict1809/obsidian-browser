@@ -72,6 +72,7 @@ const Icon = ({ name, size = 14, color = 'currentColor', style = {} }) => {
     x:       <path d="M18 6 6 18M6 6l12 12" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/>,
     download:<><path d="M12 3v12m0 0-4-4m4 4 4-4" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/><path d="M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/></>,
     trash:   <><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none"/></>,
+    subtitles:<><rect x="3" y="5" width="18" height="14" rx="2" stroke={color} strokeWidth="1.6" fill="none"/><path d="M7 15h3M14 15h3M7 11h10" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/></>,
   };
   return (
     <svg viewBox="0 0 24 24" style={s} aria-hidden="true">
@@ -166,6 +167,12 @@ function UrlBar({ url, loading, onNavigate, onStop, onReload }) {
     setEditing(true);
     setTimeout(() => { inputRef.current?.select(); }, 10);
   };
+
+  useEffect(() => {
+    const handler = () => startEdit();
+    document.addEventListener('focus-urlbar', handler);
+    return () => document.removeEventListener('focus-urlbar', handler);
+  }, [url]);
 
   const commit = () => {
     setEditing(false);

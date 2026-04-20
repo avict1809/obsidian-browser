@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   close:         ()  => ipcRenderer.send('window-close'),
   isMaximized:   ()  => ipcRenderer.invoke('window-is-maximized'),
   openExternal:  (u) => ipcRenderer.send('open-external', u),
+  openFileDialog: ()  => ipcRenderer.invoke('open-file-dialog'),
+  getWebviewPreloadPath: () => ipcRenderer.invoke('get-webview-preload-path'),
+  readFileText: (path) => ipcRenderer.invoke('read-file-text', path),
+  checkMatchingSubtitle: (vPath) => ipcRenderer.invoke('check-matching-subtitle', vPath),
 
   // Webview session setup
   setupWebviewSession: (id) => ipcRenderer.send('setup-webview-session', id),
