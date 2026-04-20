@@ -1,44 +1,91 @@
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, webFrame, contextBridge } = require('electron');
 
-// Sync/Async dialog bridge
-window.alert = (message) => {
-  // Alert is async to the host for a beautiful tab-modal UI
-  ipcRenderer.sendToHost('page-alert', String(message));
-};
-window.confirm = (message) => {
-  // Confirm and Prompt must be sync for script execution to wait
-  return ipcRenderer.sendSync('page-dialog-sync', { type: 'confirm', message: String(message) });
-};
-window.prompt = (message, defaultValue) => {
-  return ipcRenderer.sendSync('page-dialog-sync', { type: 'prompt', message: String(message), defaultValue: String(defaultValue || '') });
-};
+// ── 1. Fix Dialog Overrides (Main World Injection) ──────────────────────────
+// Because contextIsolation is usually 'yes', we must expose a bridge and then
+// use executeJavaScript to hook the native functions in the page's context.
 
+contextBridge.exposeInMainWorld('_obsidianBridge', {
+    sendAlert: (msg) => ipcRenderer.sendToHost('page-alert', msg),
+    sendSync: (data) => ipcRenderer.sendSync('page-dialog-sync', data)
+});
 
+// Inject the overrides directly into the page context
+webFrame.executeJavaScript(`
+  (function() {
+    window.alert = (msg) => {
+      window._obsidianBridge.sendAlert(String(msg));
+    };
+    window.confirm = (msg) => {
+      return window._obsidianBridge.sendSync({ type: 'confirm', message: String(msg) });
+    };
+    window.prompt = (msg, def) => {
+      return window._obsidianBridge.sendSync({ type: 'prompt', message: String(msg), defaultValue: String(def || '') });
+    };
+  })();
+`);
 
-window.addEventListener('DOMContentLoaded', () => {
-  const handleMouseOver = (e) => {
-    let target = e.target;
-    while (target && target.tagName !== 'A') {
-      target = target.parentElement;
+// ── 2. Link Hover Bubbles (5 second timer) ──────────────────────────────────
+let hoverTimer = null;
+let currentHoverUrl = null;
+
+function stopHover() {
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
+  currentHoverUrl = null;
+  ipcRenderer.sendToHost('hover-link-bubble', null);
+}
+
+window.addEventListener('mouseover', (e) => {
+  let target = e.target;
+  while (target && target.tagName !== 'A') {
+    target = target.parentElement;
+  }
+
+  if (target && target.tagName === 'A') {
+    const href = target.href;
+    if (!href || href.startsWith('javascript:')) return;
+    
+    // Always update status bar immediately
+    ipcRenderer.sendToHost('hover-link', href);
+
+    // If it's a new link, start the 5 second bubble timer
+    if (href !== currentHoverUrl) {
+      if (hoverTimer) clearTimeout(hoverTimer);
+      currentHoverUrl = href;
+      
+      // Store current coordinates
+      const x = e.clientX;
+      const y = e.clientY;
+
+      hoverTimer = setTimeout(() => {
+        ipcRenderer.sendToHost('hover-link-bubble', { 
+            url: href, 
+            x: x, 
+            y: y 
+        });
+      }, 5000);
     }
-    if (target && target.tagName === 'A') {
-      const href = target.href;
-      if (href) {
-        ipcRenderer.sendToHost('hover-link', href);
-      }
-    }
-  };
+  } else {
+    ipcRenderer.sendToHost('hover-link', null);
+    stopHover();
+  }
+});
 
-  const handleMouseOut = (e) => {
-    let target = e.target;
-    while (target && target.tagName !== 'A') {
-      target = target.parentElement;
-    }
-    if (target && target.tagName === 'A') {
-      ipcRenderer.sendToHost('hover-link', null);
-    }
-  };
+window.addEventListener('mouseout', (e) => {
+  // If we're moving between elements within the same link, don't stop
+  let target = e.relatedTarget;
+  while (target && target.tagName !== 'A') {
+    target = target.parentElement;
+  }
+  if (!target || target.href !== currentHoverUrl) {
+    stopHover();
+  }
+});
 
-  window.addEventListener('mouseover', handleMouseOver);
-  window.addEventListener('mouseout', handleMouseOut);
+// Keep track of mouse movement to update bubble position or cancel if moved too much
+window.addEventListener('mousemove', (e) => {
+    // Optional: could cancel timer if mouse moves significantly, 
+    // but usually 5s hover implies relative stillness.
 });

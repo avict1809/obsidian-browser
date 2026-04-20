@@ -145,6 +145,7 @@ export default function App() {
   const [downloads, setDownloads]     = useState([]);
   const [isMaximized, setIsMaximized] = useState(false);
   const [hoveredUrl, setHoveredUrl]   = useState(null);
+  const [hoverBubble, setHoverBubble] = useState(null); // { url, x, y }
   const [peek, setPeek]               = useState({ show: false, url: '' });
   const [webviewPreload, setWebviewPreload] = useState('');
   const [showTrackMenu, setShowTrackMenu]   = useState(false);
@@ -503,6 +504,9 @@ export default function App() {
     wv.addEventListener('ipc-message', e => {
       if (e.channel === 'hover-link') {
         setHoveredUrl(e.args[0]);
+      } else if (e.channel === 'hover-link-bubble') {
+        // Only show if we're not already peeking
+        if (!peek.show) setHoverBubble(e.args[0]);
       } else if (e.channel === 'page-alert') {
         setPageAlert({ message: e.args[0], tabId });
       }
@@ -800,9 +804,56 @@ export default function App() {
         {/* Click-outside overlay to close panels */}
         {hasActivePanelRight && (
           <div
-            style={{ position: 'absolute', inset: 0, zIndex: 49 }}
+            style={{ position: 'absolute', inset: 0, zIndex: 40 }}
             onClick={closeAllPanels}
           />
+        )}
+
+        {/* ── Hover Preview Bubble ── */}
+        {hoverBubble && !peek.show && (
+          <button
+            onClick={() => {
+              setPeek({ show: true, url: hoverBubble.url });
+              setHoverBubble(null);
+            }}
+            style={{
+              position: 'fixed',
+              left: hoverBubble.x + 15,
+              top: hoverBubble.y + 15,
+              zIndex: 9999,
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'var(--amber)',
+              border: '2px solid rgba(0,0,0,0.3)',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.4), 0 0 0 1px rgba(232,160,48,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              animation: 'dotScale 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              transition: 'transform 0.15s, background 0.15s',
+              padding: 0,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'scale(1.15)';
+              e.currentTarget.style.background = '#f1b34d';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.background = 'var(--amber)';
+            }}
+            title="Preview link"
+          >
+            <Icon name="eye" size={14} color="#000" />
+            <div style={{
+              position: 'absolute',
+              inset: -4,
+              borderRadius: '50%',
+              border: '1px solid var(--amber)',
+              animation: 'pulse 2s infinite',
+            }} />
+          </button>
         )}
       </div>
 
