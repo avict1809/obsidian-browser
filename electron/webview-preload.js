@@ -19,7 +19,8 @@ webFrame.executeJavaScript(`
       return window._obsidianBridge.sendSync({ type: 'confirm', message: String(msg) });
     };
     window.prompt = (msg, def) => {
-      return window._obsidianBridge.sendSync({ type: 'prompt', message: String(msg), defaultValue: String(def || '') });
+      window._obsidianBridge.sendAlert('PROMPT:' + String(msg) + '|||' + String(def || ''));
+      return null;
     };
   })();
 `);

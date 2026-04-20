@@ -223,6 +223,56 @@ function ConsolePanel({ logs, onExecute, onClear, onClose }) {
   );
 }
 
+// ─── Context Menu ─────────────────────────────────────────────────────────────
+
+function ContextMenu({ x, y, params, onAction, onClose }) {
+  const containerStyle = {
+    position: 'absolute', top: y, left: x, zIndex: 11000,
+    minWidth: 200, background: 'var(--bg-elevated)', border: '1px solid var(--border-hover)',
+    borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)',
+    padding: '6px 0', animation: 'fadeIn 0.1s ease', pointerEvents: 'auto'
+  };
+
+  const itemStyle = {
+    padding: '8px 14px', fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.1s',
+    border: 'none', background: 'none', width: '100%', textAlign: 'left',
+  };
+
+  const MenuItem = ({ icon, label, onClick, disabled }) => (
+    <button
+      onClick={() => { onClick(); onClose(); }}
+      disabled={disabled}
+      style={{ ...itemStyle, opacity: disabled ? 0.4 : 1, cursor: disabled ? 'default' : 'pointer' }}
+      onMouseEnter={e => !disabled && (e.currentTarget.style.background = 'var(--bg-hover)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+    >
+      <Icon name={icon} size={14} color="currentColor" />
+      <span style={{ flex: 1 }}>{label}</span>
+    </button>
+  );
+
+  return (
+    <div style={containerStyle} onClick={e => e.stopPropagation()}>
+      <MenuItem icon="back" label="Back" onClick={() => onAction('back')} />
+      <MenuItem icon="forward" label="Forward" onClick={() => onAction('forward')} />
+      <MenuItem icon="reload" label="Reload" onClick={() => onAction('reload')} />
+      <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+      {params.linkURL && (
+        <>
+          <MenuItem icon="search" label="Open in New Tab" onClick={() => onAction('new-tab', params.linkURL)} />
+          <MenuItem icon="history" label="Copy Link Address" onClick={() => onAction('copy-link', params.linkURL)} />
+          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+        </>
+      )}
+      {params.selectionText && (
+        <MenuItem icon="history" label="Copy Selection" onClick={() => onAction('copy')} />
+      )}
+      <MenuItem icon="search" label="Inspect" onClick={() => onAction('inspect', { x: params.x, y: params.y })} />
+    </div>
+  );
+}
+
 // ─── Browser Window ───────────────────────────────────────────────────────────
 
 export default function App() {
@@ -239,7 +289,9 @@ export default function App() {
   const [webviewPreload, setWebviewPreload] = useState('');
   const [showTrackMenu, setShowTrackMenu]   = useState(false);
   const [pageAlert, setPageAlert]           = useState(null); // { message, tabId }
+  const [pagePrompt, setPagePrompt]         = useState(null); // { message, defaultValue, tabId, resolve }
   const [showConsole, setShowConsole]       = useState(false);
+  const [contextMenu, setContextMenu]       = useState(null); // { x, y, tabId, params }
 
 
   const webviewRefs     = useRef({});
@@ -475,7 +527,7 @@ export default function App() {
         case 'peek-link':       triggerPeek(); break;
         case 'open-file':       openFile(); break;
         case 'load-subtitles':  loadSubtitles(activeId); break;
-        case 'toggle-console':  setShowConsole(v => !v); break;
+        case 'toggle-console':  setShowConsole(v => !v); setContextMenu(null); break;
         case 'toggle-devtools': {
           const wv = webviewRefs.current[activeId];
           if (wv) wv.openDevTools();
@@ -484,8 +536,17 @@ export default function App() {
       }
     });
 
+    api.on('page-dialog-request', ({ type, message, defaultValue, id }) => {
+      const tab = tabs.find(t => t.id === activeId); // Simplification: active tab
+      if (type === 'alert') {
+        setPageAlert({ message, tabId: activeId });
+      } else if (type === 'prompt') {
+        setPagePrompt({ message, defaultValue, tabId: activeId, resolve: () => setPagePrompt(null) });
+      }
+    });
+
     return () => {
-      ['window-state','open-new-tab','download-progress','download-done', 'browser-shortcut'].forEach(c => api.off(c));
+      ['window-state','open-new-tab','download-progress','download-done', 'browser-shortcut', 'page-dialog-request'].forEach(c => api.off(c));
     };
   }, [addTab, activeId, closeTab, reload, goBack, goForward, triggerPeek, openFile, loadSubtitles]);
 
@@ -504,7 +565,7 @@ export default function App() {
       if (mod && e.key === 'l') { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
       if (mod && e.key === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
       if (mod && e.key === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
-      if (mod && e.key === 'k') { e.preventDefault(); setShowConsole(v => !v); }
+      if (mod && e.key === 'k') { e.preventDefault(); setShowConsole(v => !v); setContextMenu(null); }
       if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); setLocked(true); }
       if (mod && e.shiftKey && e.key === 'I') { e.preventDefault(); api.toggleDevTools?.() || alert("Use context menu or menu bar to open devtools for the shell."); }
       if (mod && e.shiftKey && e.key === 'H') { e.preventDefault(); goBack(); }
@@ -520,9 +581,10 @@ export default function App() {
       }
     };
     const clickHandler = (e) => {
-      // Don't clear if clicking the bubble itself
+      // Don't clear if clicking the bubble or context menu
       if (e.target.closest('.hover-bubble-btn')) return;
       setHoverBubble(null);
+      setContextMenu(null);
     };
     window.addEventListener('keydown', handler);
     window.addEventListener('mousedown', clickHandler);
@@ -616,8 +678,26 @@ export default function App() {
         // Only show if we're not already peeking
         if (!peek.show) setHoverBubble(e.args[0]);
       } else if (e.channel === 'page-alert') {
-        setPageAlert({ message: e.args[0], tabId });
+        const msg = String(e.args[0]);
+        if (msg.startsWith('PROMPT:')) {
+           const parts = msg.replace('PROMPT:', '').split('|||');
+           setPagePrompt({ message: parts[0], defaultValue: parts[1] || '', tabId, resolve: () => setPagePrompt(null) });
+        } else {
+           setPageAlert({ message: msg, tabId });
+        }
+      } else if (e.channel === 'page-prompt') {
+        setPagePrompt({ 
+          message: e.args[0], 
+          defaultValue: e.args[1], 
+          tabId,
+          resolve: (val) => { setPagePrompt(null); }
+        });
       }
+    });
+
+    wv.addEventListener('context-menu', (e) => {
+      e.preventDefault();
+      setContextMenu({ x: e.params.x, y: e.params.y, tabId, params: e.params });
     });
 
     wv.addEventListener('console-message', e => {
@@ -1025,12 +1105,13 @@ export default function App() {
             </span>
           )}
         </div>
-        {/* ── Page Alert (Custom Browser Alert) ── */}
+        {/* ── Custom Modals (Alert & Prompt) ── */}
+        
         {pageAlert && (
           <div style={{
-            position: 'absolute', inset: 0, zIndex: 2000,
+            position: 'absolute', inset: 0, zIndex: 10000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)',
             animation: 'fadeIn 0.2s ease',
           }} onClick={() => setPageAlert(null)}>
             <div style={{
@@ -1065,6 +1146,95 @@ export default function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {pagePrompt && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 10000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)',
+            animation: 'fadeIn 0.2s ease',
+          }} onClick={() => pagePrompt.resolve(null)}>
+            <div style={{
+              width: 440, background: 'var(--bg-elevated)', borderRadius: 16,
+              border: '1px solid var(--border-hover)', boxShadow: '0 25px 60px rgba(0,0,0,0.8)',
+              padding: 28, display: 'flex', flexDirection: 'column', gap: 20,
+              animation: 'modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', background: 'rgba(232, 160, 48, 0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--amber)'
+                }}>
+                  <Icon name="search" size={18} color="currentColor" />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: 0.5 }}>User Input Required</span>
+              </div>
+              
+              <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                {pagePrompt.message}
+              </div>
+
+              <input 
+                autoFocus
+                defaultValue={pagePrompt.defaultValue}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') pagePrompt.resolve(e.target.value);
+                  if (e.key === 'Escape') pagePrompt.resolve(null);
+                }}
+                style={{
+                  width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                  borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)',
+                  fontSize: 14, outline: 'none', fontFamily: 'var(--font-ui)',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)',
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button onClick={() => pagePrompt.resolve(null)} style={{
+                  padding: '8px 20px', background: 'none', color: 'var(--text-muted)',
+                  border: '1px solid var(--border)', borderRadius: 8, fontSize: 13,
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--text-muted)'}
+                >Cancel</button>
+                <button onClick={() => {
+                  const val = document.activeElement?.value || pagePrompt.defaultValue;
+                  pagePrompt.resolve(val);
+                }} 
+                style={{
+                  padding: '8px 32px', background: 'var(--amber)', color: '#000',
+                  border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >OK</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {contextMenu && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            params={contextMenu.params}
+            onClose={() => setContextMenu(null)}
+            onAction={(action, data) => {
+              const wv = webviewRefs.current[activeId];
+              if (!wv) return;
+              switch (action) {
+                case 'back':    wv.goBack(); break;
+                case 'forward': wv.goForward(); break;
+                case 'reload':  wv.reload(); break;
+                case 'new-tab': addTab(data); break;
+                case 'copy':    wv.copy(); break;
+                case 'copy-link': navigator.clipboard.writeText(data); break;
+                case 'inspect': wv.inspectElement(data.x, data.y); break;
+              }
+            }}
+          />
         )}
       </div>
     </div>

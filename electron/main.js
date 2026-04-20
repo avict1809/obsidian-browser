@@ -201,20 +201,9 @@ ipcMain.on('page-dialog-sync', (event, { type, message, defaultValue }) => {
     });
     event.returnValue = (choice === 1);
   } else if (type === 'prompt') {
-    // For a "Good Prompt" on Windows, we can use a small PowerShell snippet
-    // to show a real input box synchronously.
-    const { execSync } = require('child_process');
-    const escapedMsg = message.replace(/'/g, "''");
-    const escapedDef = (defaultValue || "").replace(/'/g, "''");
-    const psCommand = `[void][System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic'); [Microsoft.VisualBasic.Interaction]::InputBox('${escapedMsg}', 'Obsidian Browser', '${escapedDef}')`;
-    
-    try {
-      const result = execSync(`powershell -Command "${psCommand}"`, { encoding: 'utf8' }).trim();
-      event.returnValue = result;
-    } catch (err) {
-      console.error('Prompt error:', err);
-      event.returnValue = defaultValue || '';
-    }
+    // Forward to renderer for a "Good Prompt" integrated into the shell
+    mainWindow?.webContents.send('page-dialog-request', { type, message, defaultValue, id: contents.id });
+    event.returnValue = defaultValue || ''; // Non-blocking return for custom UI
   } else {
     event.returnValue = null;
   }
