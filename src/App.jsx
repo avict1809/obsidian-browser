@@ -390,7 +390,7 @@ export default function App() {
     return () => {
       ['window-state','open-new-tab','download-progress','download-done', 'browser-shortcut'].forEach(c => api.off(c));
     };
-  }, [addTab, activeId, closeTab, reload, goBack, goForward]);
+  }, [addTab, activeId, closeTab, reload, goBack, goForward, triggerPeek, openFile, loadSubtitles]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
@@ -420,14 +420,18 @@ export default function App() {
         setActiveId(tabs[next].id);
       }
     };
-    const clickHandler = () => setHoverBubble(null);
+    const clickHandler = (e) => {
+      // Don't clear if clicking the bubble itself
+      if (e.target.closest('.hover-bubble-btn')) return;
+      setHoverBubble(null);
+    };
     window.addEventListener('keydown', handler);
     window.addEventListener('mousedown', clickHandler);
     return () => {
       window.removeEventListener('keydown', handler);
       window.removeEventListener('mousedown', clickHandler);
     }
-  }, [locked, activeId, tabs, addTab, closeTab, reload, goBack, goForward]);
+  }, [locked, activeId, tabs, addTab, closeTab, reload, goBack, goForward, triggerPeek, openFile, loadSubtitles]);
 
   // ── Webview event wiring ───────────────────────────────────────────────────
 
@@ -817,7 +821,10 @@ export default function App() {
         {/* ── Hover Preview Bubble ── */}
         {hoverBubble && !peek.show && (
           <button
-            onClick={() => {
+            className="hover-bubble-btn"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
               setPeek({ show: true, url: hoverBubble.url });
               setHoverBubble(null);
             }}
