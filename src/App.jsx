@@ -157,8 +157,10 @@ function ConsolePanel({ logs, onExecute, onClear, onClose }) {
 
   return (
     <div style={{
+      position: 'absolute', bottom: 0, left: 0, right: 0,
       height: 240, background: 'var(--bg-base)', borderTop: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 110,
+      animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
     }}>
       {/* Console Header */}
       <div style={{
@@ -497,6 +499,7 @@ export default function App() {
     });
 
     api.on('browser-shortcut', action => {
+      console.log('[DEBUG] Shortcut received:', action);
       switch (action) {
         case 'new-tab':          addTab(); break;
         case 'close-tab':        closeTab(activeId); break;
@@ -554,22 +557,26 @@ export default function App() {
     if (locked) return;
     const handler = e => {
       const mod = e.ctrlKey || e.metaKey;
+      if (mod) console.log('[DEBUG] Keydown detected:', e.key, 'Mod:', mod, 'Code:', e.code);
 
-      if (mod && e.key === 't') { e.preventDefault(); addTab(); }
-      if (mod && e.key === 'w') { e.preventDefault(); closeTab(activeId); }
-      if (mod && e.key === 'r') { e.preventDefault(); reload(); }
-      if (mod && e.key === 'o') { e.preventDefault(); openFile(); }
-      if (mod && e.key === 'u') { e.preventDefault(); loadSubtitles(activeId); }
-      if (mod && e.key === 'l') { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
-      if (mod && e.key.toLowerCase() === 'h') { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
+      if (mod && e.key.toLowerCase() === 't') { e.preventDefault(); addTab(); }
+      if (mod && e.key.toLowerCase() === 'w') { e.preventDefault(); closeTab(activeId); }
+      if (mod && e.key.toLowerCase() === 'r') { e.preventDefault(); reload(); }
+      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); }
+      if (mod && e.key.toLowerCase() === 'u') { e.preventDefault(); loadSubtitles(activeId); }
+      if (mod && e.key.toLowerCase() === 'l' && !e.shiftKey) { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
+      if (mod && e.key.toLowerCase() === 'h' && !e.shiftKey) { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
       if (mod && e.key.toLowerCase() === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
       if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowConsole(v => !v); setContextMenu(null); }
-      if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); setLocked(true); }
-      if (mod && e.shiftKey && e.key === 'I') { e.preventDefault(); api.toggleDevTools?.() || alert("Use context menu or menu bar to open devtools for the shell."); }
-      if (mod && e.shiftKey && e.key === 'H') { e.preventDefault(); goBack(); }
-      if (mod && e.shiftKey && e.key === 'L') { e.preventDefault(); goForward(); }
-      if (e.altKey && e.key === 'ArrowLeft') goBack();
-      if (e.altKey && e.key === 'ArrowRight') goForward();
+      
+      // Shift modified shortcuts
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); setLocked(true); }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'i') { e.preventDefault(); window.electronAPI?.toggleDevTools(); }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); triggerPeek(); }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); goBack(); }
+      
+      if (e.altKey && e.key === 'ArrowLeft')  { e.preventDefault(); goBack(); }
+      if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); goForward(); }
 
       if (mod && e.key === 'Tab') {
         e.preventDefault();

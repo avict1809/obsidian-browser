@@ -328,16 +328,16 @@ app.whenReady().then(() => {
         if (ctrl  && key === 'w')   action = 'close-tab';
         if (ctrl  && key === 'r')   action = 'reload';
         if (ctrl  && key === 'l')   action = 'focus-urlbar';
-        if (ctrl  && key === 'h')   action = 'toggle-history';
-        if (ctrl  && key === 'j')   action = 'toggle-downloads';
+        if (ctrl  && (key === 'h' || input.code === 'KeyH'))   action = 'toggle-history';
+        if (ctrl  && (key === 'j' || input.code === 'KeyJ'))   action = 'toggle-downloads';
         if (ctrl  && (key === 'k' || input.code === 'KeyK'))   action = 'toggle-console';
-        if (ctrl  && shift && key === 'l') action = 'lock-browser';
+        if (ctrl  && shift && (key === 'l' || input.code === 'KeyL')) action = 'lock-browser';
         if (ctrl  && key === 'tab' &&  shift) action = 'prev-tab';
         if (ctrl  && key === 'tab' && !shift) action = 'next-tab';
-        if (ctrl  && shift && key === 'x') action = 'peek-link';
-        if (ctrl  && shift && key === 'i') action = 'toggle-devtools';
-        if (ctrl  && key === 'o')   action = 'open-file';
-        if (ctrl  && key === 'u')   action = 'load-subtitles';
+        if (ctrl  && shift && (key === 'x' || input.code === 'KeyX')) action = 'peek-link';
+        if (ctrl  && shift && (key === 'i' || input.code === 'KeyI')) action = 'toggle-devtools';
+        if (ctrl  && (key === 'o' || input.code === 'KeyO'))   action = 'open-file';
+        if (ctrl  && (key === 'u' || input.code === 'KeyU'))   action = 'load-subtitles';
         if (input.alt && key === 'arrowleft')  action = 'go-back';
         if (input.alt && key === 'arrowright') action = 'go-forward';
 

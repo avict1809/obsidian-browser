@@ -88,7 +88,7 @@ window.addEventListener('mouseover', (e) => {
         clearTimer = setTimeout(() => {
             ipcRenderer.sendToHost('hover-link', null);
             stopHover();
-        }, 1000);
+        }, 5000);
     }
   }
 });
@@ -106,7 +106,7 @@ window.addEventListener('mouseout', (e) => {
         clearTimer = setTimeout(() => {
             ipcRenderer.sendToHost('hover-link', null);
             stopHover();
-        }, 1000);
+        }, 5000);
     }
   }
 });
