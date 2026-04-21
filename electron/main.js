@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, shell, dialog, webContents, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, shell, dialog, webContents, nativeTheme, globalShortcut } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -47,6 +47,7 @@ function createWindow() {
     show: false,            // show only once ready-to-show fires
     icon: path.join(__dirname, '../assets/icon.png'),
     hasShadow: false,
+    skipTaskbar: true,      // Hide from taskbar and Alt+Tab (on Windows)
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -55,6 +56,7 @@ function createWindow() {
       session: session.fromPartition(PARTITION),
       plugins: true,          // Enable PDF viewer and other plugins
     },
+
   });
 
   // Make window invisible to screen captures and screen sharing
@@ -376,10 +378,27 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // Register global shortcut to toggle visibility
+  globalShortcut.register('CommandOrControl+Shift+G', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    }
+  });
+
   app.on('activate', () => {
     if (!mainWindow) createWindow();
   });
 });
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
+
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

@@ -832,11 +832,7 @@ export default function App() {
             onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
             title="Close" />
-          <button onClick={() => window.electronAPI?.minimize()}
-            style={{ width: 12, height: 12, borderRadius: '50%', border: 'none', background: '#e8a030', cursor: 'pointer', transition: 'opacity 0.12s' }}
-            onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            title="Minimize" />
+
           <button onClick={() => window.electronAPI?.maximize()}
             style={{ width: 12, height: 12, borderRadius: '50%', border: 'none', background: '#5cb87a', cursor: 'pointer', transition: 'opacity 0.12s' }}
             onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
