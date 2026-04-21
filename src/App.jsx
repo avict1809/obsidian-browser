@@ -137,7 +137,7 @@ function HistoryPanel({ onNavigate, onClose }) {
 
 // ─── Console Panel ────────────────────────────────────────────────────────────
 
-function ConsolePanel({ logs, onExecute, onClear, onClose }) {
+function ConsolePanel({ height, onResizeStart, logs, onExecute, onClear, onClose }) {
   const [input, setInput] = useState('');
   const endRef = useRef(null);
   const inputRef = useRef(null);
@@ -158,14 +158,26 @@ function ConsolePanel({ logs, onExecute, onClear, onClose }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0,
-      height: 240, background: 'var(--bg-base)', borderTop: '1px solid var(--border)',
+      height: height, background: 'var(--bg-base)', borderTop: '1px solid var(--border)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 110,
-      animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+      animation: height === 260 ? 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
     }}>
+      {/* Resize Handle */}
+      <div 
+        onMouseDown={onResizeStart}
+        style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+          cursor: 'ns-resize', zIndex: 120, background: 'transparent',
+          transition: 'background 0.2s',
+        }} 
+        onMouseEnter={e => e.currentTarget.style.background = 'var(--amber)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      />
+
       {/* Console Header */}
       <div style={{
         padding: '6px 12px', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="search" size={12} color="var(--amber)" />
@@ -190,13 +202,30 @@ function ConsolePanel({ logs, onExecute, onClear, onClose }) {
           <div style={{ color: 'var(--text-muted)', opacity: 0.5, fontStyle: 'italic' }}>No logs recorded.</div>
         ) : logs.map((log, i) => (
           <div key={i} style={{
-            display: 'flex', gap: 10, padding: '2px 0',
+            display: 'flex', gap: 12, padding: '4px 0',
             borderBottom: '1px solid rgba(255,255,255,0.02)',
             color: log.type === 'error' ? '#ff6b6b' : log.type === 'warn' ? '#ffd43b' : 'var(--text-secondary)',
+            alignItems: 'flex-start'
           }}>
-            <span style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }}>[{log.time}]</span>
-            <span style={{ flex: 1, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{log.message}</span>
-            <span style={{ color: 'var(--text-muted)', opacity: 0.3, fontSize: 10, flexShrink: 0 }}>{log.source}:{log.line}</span>
+            <span style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0, width: 75 }}>[{log.time}]</span>
+            <span style={{ 
+                flex: 1, 
+                wordBreak: 'break-word', 
+                overflowWrap: 'anywhere',
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.5
+            }}>{log.message}</span>
+            <span style={{ 
+                color: 'var(--text-muted)', 
+                opacity: 0.3, 
+                fontSize: 10, 
+                flexShrink: 0,
+                width: 120,
+                textAlign: 'right',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            }} title={`${log.source}:${log.line}`}>{log.source}:{log.line}</span>
           </div>
         ))}
         <div ref={endRef} />
@@ -205,7 +234,7 @@ function ConsolePanel({ logs, onExecute, onClear, onClose }) {
       {/* Input Area */}
       <div style={{
         padding: '8px 12px', background: 'var(--bg-surface)', borderTop: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', gap: 10,
+        display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
       }}>
         <span style={{ color: 'var(--amber)', fontSize: 14, fontWeight: 'bold' }}>›</span>
         <input
@@ -294,7 +323,10 @@ export default function App() {
   const [pagePrompt, setPagePrompt]         = useState(null); // { message, defaultValue, tabId, resolve }
   const [dialogQueue, setDialogQueue]       = useState([]);   // [{ type, message, defaultValue, tabId, resolve }]
   const [showConsole, setShowConsole]       = useState(false);
+  const [consoleHeight, setConsoleHeight]   = useState(260);
+  const [isResizing, setIsResizing]         = useState(false);
   const [contextMenu, setContextMenu]       = useState(null); // { x, y, tabId, params }
+  const [promptValue, setPromptValue]       = useState(''); // for controlled prompt input
 
 
   const webviewRefs     = useRef({});
@@ -613,6 +645,7 @@ export default function App() {
         resolve: () => { setPageAlert(null); if (next.resolve) next.resolve(); }
       });
     } else {
+      setPromptValue(next.defaultValue || '');
       setPagePrompt({ 
         message: next.message, 
         defaultValue: next.defaultValue, 
@@ -621,6 +654,22 @@ export default function App() {
       });
     }
   }, [pageAlert, pagePrompt, dialogQueue]);
+
+  // Handle console resizing
+  useEffect(() => {
+    if (!isResizing) return;
+    const move = (e) => {
+      const newHeight = window.innerHeight - e.clientY;
+      setConsoleHeight(Math.max(100, Math.min(window.innerHeight * 0.8, newHeight)));
+    };
+    const up = () => setIsResizing(false);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+  }, [isResizing]);
 
   // ── Webview event wiring ───────────────────────────────────────────────────
 
@@ -965,6 +1014,8 @@ export default function App() {
           {/* Integrated Console Panel */}
           {showConsole && (
             <ConsolePanel
+              height={consoleHeight}
+              onResizeStart={() => setIsResizing(true)}
               logs={activeTab.logs || []}
               onExecute={code => {
                 const wv = webviewRefs.current[activeId];
@@ -1204,9 +1255,10 @@ export default function App() {
 
               <input 
                 autoFocus
-                defaultValue={pagePrompt.defaultValue}
+                value={promptValue}
+                onChange={e => setPromptValue(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter') pagePrompt.resolve(e.target.value);
+                  if (e.key === 'Enter') pagePrompt.resolve(promptValue);
                   if (e.key === 'Escape') pagePrompt.resolve(null);
                 }}
                 style={{
@@ -1225,10 +1277,7 @@ export default function App() {
                 }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--text-muted)'}
                 >Cancel</button>
-                <button onClick={() => {
-                  const val = document.activeElement?.value || pagePrompt.defaultValue;
-                  pagePrompt.resolve(val);
-                }} 
+                 <button onClick={() => pagePrompt.resolve(promptValue)} 
                 style={{
                   padding: '8px 32px', background: 'var(--amber)', color: '#000',
                   border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700,
