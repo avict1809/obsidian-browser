@@ -29,6 +29,88 @@ console.log('NODE_ENV:', process.env.NODE_ENV);
 
 let mainWindow = null;
 
+// ── Settings Persistence ──────────────────────────────────────────────────
+const DEFAULT_SETTINGS = {
+  alwaysOnTop: true,
+  skipTaskbar: true,
+  defaultSearchEngine: 'https://www.google.com/search?q=',
+  shortcuts: {
+    'new-tab':          { key: 't', ctrl: true,  shift: false, alt: false },
+    'close-tab':        { key: 'w', ctrl: true,  shift: false, alt: false },
+    'reload':           { key: 'r', ctrl: true,  shift: false, alt: false },
+    'focus-urlbar':     { key: 'l', ctrl: true,  shift: false, alt: false },
+    'toggle-history':   { key: 'h', ctrl: true,  shift: false, alt: false },
+    'toggle-downloads': { key: 'j', ctrl: true,  shift: false, alt: false },
+    'toggle-console':   { key: 'k', ctrl: true,  shift: false, alt: false },
+    'lock-browser':     { key: 'l', ctrl: true,  shift: true,  alt: false },
+    'prev-tab':         { key: 'tab', ctrl: true,  shift: true,  alt: false },
+    'next-tab':         { key: 'tab', ctrl: true,  shift: false, alt: false },
+    'peek-link':        { key: 'x', ctrl: true,  shift: true,  alt: false },
+    'toggle-devtools':  { key: 'i', ctrl: true,  shift: true,  alt: false },
+    'open-file':        { key: 'o', ctrl: true,  shift: false, alt: false },
+    'load-subtitles':   { key: 'u', ctrl: true,  shift: false, alt: false },
+    'go-back':          { key: 'arrowleft',  ctrl: false, shift: false, alt: true },
+    'go-forward':       { key: 'arrowright', ctrl: false, shift: false, alt: true },
+    'toggle-visibility':{ key: 'g', ctrl: true,  shift: true,  alt: false },
+  },
+  startHidden: false,
+};
+
+let settings = { ...DEFAULT_SETTINGS };
+
+function getSettingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function loadSettings() {
+  try {
+    const p = getSettingsPath();
+    if (fs.existsSync(p)) {
+      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+      settings = { ...DEFAULT_SETTINGS, ...data, shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...data.shortcuts } };
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err);
+  }
+}
+
+function saveSettings() {
+  try {
+    fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf8');
+    // Notify renderer if window exists
+    mainWindow?.webContents.send('settings-updated', settings);
+    // Update global shortcuts
+    registerGlobalShortcuts();
+  } catch (err) {
+    console.error('Failed to save settings:', err);
+  }
+}
+
+function registerGlobalShortcuts() {
+  globalShortcut.unregisterAll();
+  
+  const v = settings.shortcuts['toggle-visibility'];
+  if (v) {
+    const accel = `${v.ctrl ? 'CommandOrControl+' : ''}${v.shift ? 'Shift+' : ''}${v.alt ? 'Alt+' : ''}${v.key.toUpperCase()}`;
+    const success = globalShortcut.register(accel, () => {
+      console.log(`Global shortcut ${accel} pressed`);
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          console.log('Hiding window');
+          mainWindow.hide();
+        } else {
+          console.log('Showing window');
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      } else {
+        console.log('Shortcut pressed but mainWindow is null');
+      }
+    });
+    console.log(`Registration of ${accel}: ${success ? 'SUCCESS' : 'FAILED'}`);
+  }
+}
+
 // ── Persist user sessions across restarts ──────────────────────────────────
 // Electron uses a named session partition — 'persist:obsidian' means cookies,
 // localStorage, IndexedDB and login tokens are all saved to disk between sessions.
@@ -47,7 +129,8 @@ function createWindow() {
     show: false,            // show only once ready-to-show fires
     icon: path.join(__dirname, '../assets/icon.png'),
     hasShadow: false,
-    skipTaskbar: true,      // Hide from taskbar and Alt+Tab (on Windows)
+    skipTaskbar: settings.skipTaskbar,      // Dynamic from settings
+    alwaysOnTop: settings.alwaysOnTop,      // Dynamic from settings
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -62,9 +145,13 @@ function createWindow() {
   // Make window invisible to screen captures and screen sharing
   mainWindow.setContentProtection(true);
 
-  // Don't show until painted to avoid white flash
+  // Stay invisible on startup if 'startHidden' is enabled
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    if (settings.startHidden) {
+      console.log('Window ready-to-show (staying hidden for stealth mode)');
+    } else {
+      mainWindow.show();
+    }
   });
 
   const startUrl = isDev
@@ -88,6 +175,36 @@ ipcMain.on('window-maximize',  () => mainWindow?.isMaximized() ? mainWindow.unma
 ipcMain.on('window-close',     () => mainWindow?.close());
 ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 ipcMain.on('window-toggle-devtools', () => mainWindow?.webContents.toggleDevTools());
+
+// ── IPC: Settings ──────────────────────────────────────────────────────────
+ipcMain.handle('settings-get', () => settings);
+ipcMain.handle('settings-set', (_, newSettings) => {
+  const oldAlwaysOnTop = settings.alwaysOnTop;
+  const oldSkipTaskbar = settings.skipTaskbar;
+  
+  settings = { ...settings, ...newSettings };
+  
+  if (mainWindow) {
+    if (settings.alwaysOnTop !== oldAlwaysOnTop) {
+      mainWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+    }
+    if (settings.skipTaskbar !== oldSkipTaskbar) {
+      mainWindow.setSkipTaskbar(settings.skipTaskbar);
+    }
+  }
+  
+  saveSettings();
+  return settings;
+});
+ipcMain.handle('settings-reset', () => {
+  settings = { ...DEFAULT_SETTINGS };
+  if (mainWindow) {
+    mainWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+    mainWindow.setSkipTaskbar(settings.skipTaskbar);
+  }
+  saveSettings();
+  return settings;
+});
 
 // ── IPC: Open external links in system browser ─────────────────────────────
 ipcMain.on('open-external', (_, url) => shell.openExternal(url));
@@ -250,6 +367,8 @@ ipcMain.handle('auth-set-password', (_, pin) => {
 
 // ── App lifecycle ──────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  loadSettings();
+
   // Set default theme to light so that web content (prefers-color-scheme) 
   // doesn't automatically switch to dark mode. The browser shell remains dark.
   nativeTheme.themeSource = 'light';
@@ -320,32 +439,21 @@ app.whenReady().then(() => {
       // key, letting us forward our shortcuts to the renderer.
       contents.on('before-input-event', (event, input) => {
         if (input.type !== 'keyDown') return;
-        const ctrl = input.control || input.meta;
+        const ctrl  = input.control || input.meta;
         const shift = input.shift;
         const key   = input.key.toLowerCase();
 
-        let action = null;
-
-        if (ctrl  && key === 't')   action = 'new-tab';
-        if (ctrl  && key === 'w')   action = 'close-tab';
-        if (ctrl  && key === 'r')   action = 'reload';
-        if (ctrl  && key === 'l')   action = 'focus-urlbar';
-        if (ctrl  && (key === 'h' || input.code === 'KeyH'))   action = 'toggle-history';
-        if (ctrl  && (key === 'j' || input.code === 'KeyJ'))   action = 'toggle-downloads';
-        if (ctrl  && (key === 'k' || input.code === 'KeyK'))   action = 'toggle-console';
-        if (ctrl  && shift && (key === 'l' || input.code === 'KeyL')) action = 'lock-browser';
-        if (ctrl  && key === 'tab' &&  shift) action = 'prev-tab';
-        if (ctrl  && key === 'tab' && !shift) action = 'next-tab';
-        if (ctrl  && shift && (key === 'x' || input.code === 'KeyX')) action = 'peek-link';
-        if (ctrl  && shift && (key === 'i' || input.code === 'KeyI')) action = 'toggle-devtools';
-        if (ctrl  && (key === 'o' || input.code === 'KeyO'))   action = 'open-file';
-        if (ctrl  && (key === 'u' || input.code === 'KeyU'))   action = 'load-subtitles';
-        if (input.alt && key === 'arrowleft')  action = 'go-back';
-        if (input.alt && key === 'arrowright') action = 'go-forward';
-
-        if (action) {
-          event.preventDefault();
-          mainWindow?.webContents.send('browser-shortcut', action);
+        // ── Dynamic shortcuts from settings ──
+        const s = settings.shortcuts;
+        for (const [name, combo] of Object.entries(s)) {
+          if (key === combo.key.toLowerCase() && 
+              ctrl === !!combo.ctrl && 
+              shift === !!combo.shift && 
+              !!input.alt === !!combo.alt) {
+            event.preventDefault();
+            mainWindow?.webContents.send('browser-shortcut', name);
+            return;
+          }
         }
       });
 
@@ -378,17 +486,8 @@ app.whenReady().then(() => {
 
   createWindow();
 
-  // Register global shortcut to toggle visibility
-  globalShortcut.register('CommandOrControl+Shift+G', () => {
-    if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        mainWindow.show();
-        mainWindow.focus();
-      }
-    }
-  });
+  // Register global shortcuts from settings
+  registerGlobalShortcuts();
 
   app.on('activate', () => {
     if (!mainWindow) createWindow();

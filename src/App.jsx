@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { normalizeUrl, displayUrl, isSecure, getFaviconUrl, Icon, Spinner, Tab, UrlBar, TBtn } from './components.jsx';
 import NewTabPage from './NewTabPage.jsx';
+import SettingsPage from './SettingsPage.jsx';
 import LockScreen from './LockScreen.jsx';
 import DownloadsPanel from './DownloadsPanel.jsx';
 
@@ -8,13 +9,16 @@ import DownloadsPanel from './DownloadsPanel.jsx';
 
 let tabIdCounter = 1;
 function createTab(url = 'about:newtab') {
+  let title = 'New Tab';
+  if (url === 'about:settings') title = 'Settings';
+  
   return {
     id: tabIdCounter++,
     url,
     initialUrl: url,
-    title: url === 'about:newtab' ? 'New Tab' : '',
+    title,
     favicon: null,
-    loading: url !== 'about:newtab',
+    loading: url !== 'about:newtab' && url !== 'about:settings',
     canGoBack: false,
     canGoForward: false,
     error: null,
@@ -327,7 +331,7 @@ export default function App() {
   const [isResizing, setIsResizing]         = useState(false);
   const [contextMenu, setContextMenu]       = useState(null); // { x, y, tabId, params }
   const [promptValue, setPromptValue]       = useState(''); // for controlled prompt input
-
+  const [settings, setSettings]             = useState(null);
 
   const webviewRefs     = useRef({});
   const attachedWebviews = useRef(new Set());
@@ -400,6 +404,15 @@ export default function App() {
     attachedWebviews.current.delete(activeId);
     delete webviewRefs.current[activeId];
   }, [activeId, updateTab]);
+
+  const openSettings = useCallback(() => {
+    const existing = tabs.find(t => t.url === 'about:settings');
+    if (existing) {
+      setActiveId(existing.id);
+    } else {
+      addTab('about:settings');
+    }
+  }, [tabs, addTab]);
 
   const stop = useCallback(() => {
     const wv = webviewRefs.current[activeId];
@@ -508,9 +521,11 @@ export default function App() {
     if (!api) return;
 
     api.getWebviewPreloadPath().then(setWebviewPreload);
+    api.settingsGet().then(setSettings);
     api.isMaximized().then(setIsMaximized);
     api.on('window-state', state => setIsMaximized(state === 'maximized'));
     api.on('open-new-tab', url => addTab(url));
+    api.on('settings-updated', s => setSettings(s));
 
     api.on('download-progress', ({ filename, received, total }) => {
       setDownloads(ds => {
@@ -531,45 +546,8 @@ export default function App() {
     });
 
     api.on('browser-shortcut', action => {
-      console.log('[DEBUG] Shortcut received:', action);
-      switch (action) {
-        case 'new-tab':          addTab(); break;
-        case 'close-tab':        closeTab(activeId); break;
-        case 'reload':           reload(); break;
-        case 'focus-urlbar':     document.dispatchEvent(new CustomEvent('focus-urlbar')); break;
-        case 'toggle-history':   setShowHistory(v => !v); setShowDownloads(false); break;
-        case 'toggle-downloads': setShowDownloads(v => !v); setShowHistory(false); break;
-        case 'lock-browser':     setLocked(true); break;
-        case 'go-back':          goBack(); break;
-        case 'go-forward':       goForward(); break;
-        case 'prev-tab': {
-          setTabs(ts => {
-            const idx = ts.findIndex(t => t.id === activeId);
-            const n = (idx - 1 + ts.length) % ts.length;
-            setActiveId(ts[n].id);
-            return ts;
-          });
-          break;
-        }
-        case 'next-tab': {
-          setTabs(ts => {
-            const idx = ts.findIndex(t => t.id === activeId);
-            const n = (idx + 1) % ts.length;
-            setActiveId(ts[n].id);
-            return ts;
-          });
-          break;
-        }
-        case 'peek-link':       triggerPeek(); break;
-        case 'open-file':       openFile(); break;
-        case 'load-subtitles':  loadSubtitles(activeId); break;
-        case 'toggle-console':  setShowConsole(v => !v); setContextMenu(null); break;
-        case 'toggle-devtools': {
-          const wv = webviewRefs.current[activeId];
-          if (wv) wv.openDevTools();
-          break;
-        }
-      }
+      console.log('[DEBUG] Shortcut received from main:', action);
+      handleShortcutAction(action);
     });
 
     api.on('page-dialog-request', ({ type, message, defaultValue, id }) => {
@@ -579,8 +557,49 @@ export default function App() {
     });
 
     return () => {
-      ['window-state','open-new-tab','download-progress','download-done', 'browser-shortcut', 'page-dialog-request'].forEach(c => api.off(c));
+      ['window-state', 'open-new-tab', 'download-progress', 'download-done', 'browser-shortcut', 'page-dialog-request', 'settings-updated'].forEach(c => api.off(c));
     };
+  }, [addTab, activeId, closeTab, reload, goBack, goForward, triggerPeek, openFile, loadSubtitles]);
+
+  const handleShortcutAction = useCallback((action) => {
+    switch (action) {
+      case 'new-tab':          addTab(); break;
+      case 'close-tab':        closeTab(activeId); break;
+      case 'reload':           reload(); break;
+      case 'focus-urlbar':     document.dispatchEvent(new CustomEvent('focus-urlbar')); break;
+      case 'toggle-history':   setShowHistory(v => !v); setShowDownloads(false); break;
+      case 'toggle-downloads': setShowDownloads(v => !v); setShowHistory(false); break;
+      case 'lock-browser':     setLocked(true); break;
+      case 'go-back':          goBack(); break;
+      case 'go-forward':       goForward(); break;
+      case 'prev-tab': {
+        setTabs(ts => {
+          const idx = ts.findIndex(t => t.id === activeId);
+          const n = (idx - 1 + ts.length) % ts.length;
+          setActiveId(ts[n].id);
+          return ts;
+        });
+        break;
+      }
+      case 'next-tab': {
+        setTabs(ts => {
+          const idx = ts.findIndex(t => t.id === activeId);
+          const n = (idx + 1) % ts.length;
+          setActiveId(ts[n].id);
+          return ts;
+        });
+        break;
+      }
+      case 'peek-link':       triggerPeek(); break;
+      case 'open-file':       openFile(); break;
+      case 'load-subtitles':  loadSubtitles(activeId); break;
+      case 'toggle-console':  setShowConsole(v => !v); setContextMenu(null); break;
+      case 'toggle-devtools': {
+        const wv = webviewRefs.current[activeId];
+        if (wv) wv.openDevTools();
+        break;
+      }
+    }
   }, [addTab, activeId, closeTab, reload, goBack, goForward, triggerPeek, openFile, loadSubtitles]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -588,33 +607,22 @@ export default function App() {
   useEffect(() => {
     if (locked) return;
     const handler = e => {
-      const mod = e.ctrlKey || e.metaKey;
-      if (mod) console.log('[DEBUG] Keydown detected:', e.key, 'Mod:', mod, 'Code:', e.code);
+      const ctrl  = e.ctrlKey || e.metaKey;
+      const shift = e.shiftKey;
+      const alt   = e.altKey;
+      const key   = e.key.toLowerCase();
 
-      if (mod && e.key.toLowerCase() === 't') { e.preventDefault(); addTab(); }
-      if (mod && e.key.toLowerCase() === 'w') { e.preventDefault(); closeTab(activeId); }
-      if (mod && e.key.toLowerCase() === 'r') { e.preventDefault(); reload(); }
-      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); }
-      if (mod && e.key.toLowerCase() === 'u') { e.preventDefault(); loadSubtitles(activeId); }
-      if (mod && e.key.toLowerCase() === 'l' && !e.shiftKey) { e.preventDefault(); document.dispatchEvent(new CustomEvent('focus-urlbar')); }
-      if (mod && e.key.toLowerCase() === 'h' && !e.shiftKey) { e.preventDefault(); setShowHistory(v => !v); setShowDownloads(false); }
-      if (mod && e.key.toLowerCase() === 'j') { e.preventDefault(); setShowDownloads(v => !v); setShowHistory(false); }
-      if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowConsole(v => !v); setContextMenu(null); }
-      
-      // Shift modified shortcuts
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); setLocked(true); }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'i') { e.preventDefault(); window.electronAPI?.toggleDevTools(); }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); triggerPeek(); }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); goBack(); }
-      
-      if (e.altKey && e.key === 'ArrowLeft')  { e.preventDefault(); goBack(); }
-      if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); goForward(); }
+      if (!settings?.shortcuts) return;
 
-      if (mod && e.key === 'Tab') {
-        e.preventDefault();
-        const idx = tabs.findIndex(t => t.id === activeId);
-        const next = e.shiftKey ? (idx - 1 + tabs.length) % tabs.length : (idx + 1) % tabs.length;
-        setActiveId(tabs[next].id);
+      for (const [action, combo] of Object.entries(settings.shortcuts)) {
+        if (key === combo.key.toLowerCase() && 
+            ctrl === !!combo.ctrl && 
+            shift === !!combo.shift && 
+            alt === !!combo.alt) {
+          e.preventDefault();
+          handleShortcutAction(action);
+          return;
+        }
       }
     };
     const clickHandler = (e) => {
@@ -942,6 +950,13 @@ export default function App() {
             )}
           </div>
         )}
+        {/* Settings button */}
+        <TBtn
+          icon="settings"
+          onClick={openSettings}
+          title="Settings"
+          active={activeTab.url === 'about:settings'}
+        />
         {/* Lock button */}
         <TBtn
           icon="lock"
@@ -961,7 +976,9 @@ export default function App() {
               visibility: tab.id === activeId ? 'visible' : 'hidden',
               zIndex: tab.id === activeId ? 1 : 0,
             }}>
-              {(tab.url === 'about:newtab' || tab.url === 'about:blank') ? (
+              {tab.url === 'about:settings' ? (
+                <SettingsPage />
+              ) : (tab.url === 'about:newtab' || tab.url === 'about:blank') ? (
                 <NewTabPage onNavigate={url => navigate(url, tab.id)} />
               ) : tab.error ? (
                 <div style={{

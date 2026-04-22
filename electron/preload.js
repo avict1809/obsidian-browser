@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Data
   clearData: () => ipcRenderer.invoke('clear-data'),
 
+  // Settings
+  settingsGet:   ()      => ipcRenderer.invoke('settings-get'),
+  settingsSet:   (s)     => ipcRenderer.invoke('settings-set', s),
+  settingsReset: ()      => ipcRenderer.invoke('settings-reset'),
+
   // Auth / PIN lock
   authHasPassword: ()      => ipcRenderer.invoke('auth-has-password'),
   authVerify:      (pin)   => ipcRenderer.invoke('auth-verify', pin),
@@ -37,7 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'webview-loading', 'webview-error',
       'open-new-tab',
       'download-progress', 'download-done',
-      'browser-shortcut',
+      'browser-shortcut', 'settings-updated',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => cb(...args));
