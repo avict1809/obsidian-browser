@@ -306,6 +306,7 @@ function ContextMenu({ x, y, params, onAction, onClose }) {
       )}
       {params.srcURL && (
         <>
+          <MenuItem icon="zoom" label="Zoom Image" onClick={() => onAction('zoom-image', params.srcURL)} />
           <MenuItem icon="search" label="Open Image in New Tab" onClick={() => onAction('new-tab', params.srcURL)} />
           <MenuItem icon="download" label="Save Image As..." onClick={() => onAction('download', params.srcURL)} />
           <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
@@ -313,6 +314,108 @@ function ContextMenu({ x, y, params, onAction, onClose }) {
       )}
 
       <MenuItem icon="search" label="Inspect" onClick={() => onAction('inspect', { x: params.x, y: params.y })} />
+    </div>
+  );
+}
+
+// ─── Zoom Overlay ─────────────────────────────────────────────────────────────
+
+function ZoomOverlay({ url, onClose }) {
+  const [zoom, setZoom] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(z => Math.max(0.2, Math.min(15, z * delta)));
+  };
+
+  const handleMouseDown = (e) => {
+    setDragging(true);
+    setLastPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lastPos.x;
+    const dy = e.clientY - lastPos.y;
+    setPos(p => ({ x: p.x + dx, y: p.y + dy }));
+    setLastPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => setDragging(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div 
+      style={{
+        position: 'absolute', inset: 0, zIndex: 12000,
+        background: 'rgba(0,0,0,0.94)', backdropFilter: 'blur(20px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'fadeIn 0.3s ease',
+        overflow: 'hidden'
+      }}
+      onWheel={handleWheel}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onClick={onClose}
+    >
+      <div style={{ position: 'absolute', top: 24, right: 24, display: 'flex', gap: 12, zIndex: 10, alignItems: 'center' }}>
+         <div style={{ 
+            background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', 
+            padding: '6px 16px', borderRadius: 20, fontSize: 11, color: 'var(--text-secondary)', 
+            backdropFilter: 'blur(10px)', fontFamily: 'var(--font-mono)',
+            transition: 'all 0.3s ease',
+            cursor: 'default'
+         }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--amber)'; e.currentTarget.style.background = 'rgba(232,160,48,0.1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+         >
+            {Math.round(zoom * 100)}%
+         </div>
+         <button onClick={onClose} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-hover)', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-primary)', transition: 'all 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+         >
+            <Icon name="close" size={18} />
+         </button>
+      </div>
+
+      <div 
+        style={{
+          transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})`,
+          transition: dragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0.2, 1)',
+          cursor: dragging ? 'grabbing' : 'grab',
+        }}
+        onClick={e => e.stopPropagation()}
+        onMouseDown={handleMouseDown}
+      >
+        <img 
+          src={url} 
+          style={{ maxWidth: '90vw', maxHeight: '90vh', boxShadow: '0 30px 100px rgba(0,0,0,0.8)', borderRadius: 8, userSelect: 'none' }}
+          draggable={false}
+          alt="Zoomed"
+        />
+      </div>
+      
+      <div style={{ 
+        position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)', 
+        color: 'var(--text-muted)', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase',
+        pointerEvents: 'none', background: 'rgba(255,255,255,0.03)', padding: '8px 20px', borderRadius: 30,
+        border: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(5px)'
+      }}>
+        Scroll to zoom • Drag to pan • Click outside to exit
+      </div>
     </div>
   );
 }
@@ -342,6 +445,7 @@ export default function App() {
   const [dragTabId, setDragTabId]           = useState(null);
   const [promptValue, setPromptValue]       = useState(''); // for controlled prompt input
   const [settings, setSettings]             = useState(null);
+  const [zoomImage, setZoomImage]           = useState(null); // URL of image to zoom
 
   const webviewRefs     = useRef({});
   const attachedWebviews = useRef(new Set());
@@ -800,6 +904,8 @@ export default function App() {
       } else if (e.channel === 'hover-link-bubble') {
         // Only show if we're not already peeking
         if (!peek.show) setHoverBubble(e.args[0]);
+      } else if (e.channel === 'zoom-image-request') {
+        setZoomImage(e.args[0]);
       } else if (e.channel === 'page-alert') {
         const msg = String(e.args[0]);
         if (msg.startsWith('PROMPT:')) {
@@ -1427,6 +1533,7 @@ export default function App() {
                     case 'copy':    wv.copy(); break;
                     case 'copy-link': navigator.clipboard.writeText(data); break;
                     case 'download': window.electronAPI?.downloadURL(data); break;
+                    case 'zoom-image': setZoomImage(data); break;
                     case 'inspect': wv.inspectElement(data.x, data.y); break;
                   }
 
@@ -1434,6 +1541,11 @@ export default function App() {
               />
             )}
           </div>
+        )}
+
+        {/* ── Zoom Image Overlay ── */}
+        {zoomImage && (
+          <ZoomOverlay url={zoomImage} onClose={() => setZoomImage(null)} />
         )}
 
       </div>

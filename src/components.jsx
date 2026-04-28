@@ -75,6 +75,7 @@ const Icon = ({ name, size = 14, color = 'currentColor', style = {} }) => {
     subtitles:<><rect x="3" y="5" width="18" height="14" rx="2" stroke={color} strokeWidth="1.6" fill="none"/><path d="M7 15h3M14 15h3M7 11h10" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/></>,
     eye:      <><circle cx="12" cy="12" r="3" stroke={color} strokeWidth="1.5" fill="none"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>,
     pin:      <path d="M12 2v8m0 0 4 4m-4-4-4 4m4 8v-8M5 10h14" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/>,
+    zoom:     <><circle cx="11" cy="11" r="8" stroke={color} strokeWidth="1.5" fill="none"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none"/></>,
   };
   return (
     <svg viewBox="0 0 24 24" style={s} aria-hidden="true">

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-browser",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A clean, dark Electron browser with persistent sessions",
   "main": "electron/main.js",
   "author": "Obsidian Team",
@@ -25,8 +25,7 @@
       {
         "provider": "github",
         "owner": "avict1809",
-        "repo": "obsidian-browser",
-        "token": "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"
+        "repo": "obsidian-browser"
       }
     ],
     "files": [

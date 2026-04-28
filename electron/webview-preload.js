@@ -116,3 +116,11 @@ window.addEventListener('mousemove', (e) => {
     // Optional: could cancel timer if mouse moves significantly, 
     // but usually 5s hover implies relative stillness.
 });
+
+// ── 3. Double Click to Zoom Image ──────────────────────────────────────────
+window.addEventListener('dblclick', (e) => {
+  let target = e.target;
+  if (target && target.tagName === 'IMG') {
+    ipcRenderer.sendToHost('zoom-image-request', target.src);
+  }
+});
