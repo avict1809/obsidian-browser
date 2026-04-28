@@ -118,6 +118,15 @@ export default function SettingsPage() {
         }}>
           <Icon name="globe" size={14} color="currentColor" /> General
         </button>
+
+        <button onClick={() => setActiveTab('proxy')} style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          background: activeTab === 'proxy' ? 'var(--amber-dim)' : 'none',
+          color: activeTab === 'proxy' ? 'var(--amber)' : 'var(--text-secondary)',
+          textAlign: 'left', fontSize: 13, fontWeight: activeTab === 'proxy' ? 600 : 400, transition: 'all 0.12s'
+        }}>
+          <Icon name="lock" size={14} color="currentColor" /> Proxy / VPN
+        </button>
         
         <button onClick={() => setActiveTab('shortcuts')} style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
@@ -184,12 +193,70 @@ export default function SettingsPage() {
             </>
           )}
 
+          {activeTab === 'proxy' && (
+            <>
+              <Section title="VPN / Proxy Settings">
+                <Toggle 
+                  label="Enable Proxy" 
+                  desc="Route all browsing traffic through a proxy server."
+                  value={settings.proxy.enabled} 
+                  onChange={v => updateSettings({ proxy: { ...settings.proxy, enabled: v } })} 
+                />
+
+                <div style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)', marginTop: 16 }}>
+                  <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, marginBottom: 8 }}>Proxy Server Address</div>
+                  <input 
+                    value={settings.proxy.server}
+                    onChange={e => updateSettings({ proxy: { ...settings.proxy, server: e.target.value, preset: 'custom' } })}
+                    placeholder="protocol://host:port (e.g. socks5://1.2.3.4:1080)"
+                    style={{
+                      width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                      borderRadius: 8, padding: '10px 12px', color: 'var(--text-primary)',
+                      fontSize: 12, outline: 'none', fontFamily: 'var(--font-mono)'
+                    }}
+                  />
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>Supports http, https, socks4, and socks5 protocols.</div>
+                </div>
+
+                <div style={{ marginTop: 24 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Free Proxy Presets</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {[
+                      { name: 'US East (SOCKS5)', server: 'socks5://72.210.252.134:46164' },
+                      { name: 'US West (SOCKS5)', server: 'socks5://98.162.25.23:4145' },
+                      { name: 'Germany (HTTP)', server: 'http://45.152.188.246:3128' },
+                      { name: 'France (HTTP)', server: 'http://51.159.115.233:3128' },
+                    ].map(p => (
+                      <button 
+                        key={p.name}
+                        onClick={() => updateSettings({ proxy: { ...settings.proxy, server: p.server, preset: p.name } })}
+                        style={{
+                          padding: '12px', background: settings.proxy.server === p.server ? 'var(--amber-dim)' : 'var(--bg-surface)',
+                          border: '1px solid', borderColor: settings.proxy.server === p.server ? 'var(--amber)' : 'var(--border)',
+                          borderRadius: 10, color: settings.proxy.server === p.server ? 'var(--amber)' : 'var(--text-secondary)',
+                          fontSize: 12, cursor: 'pointer', textAlign: 'left', transition: 'all 0.12s'
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
+                        <div style={{ fontSize: 10, opacity: 0.6, fontFamily: 'var(--font-mono)' }}>{p.server}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 12, fontStyle: 'italic' }}>
+                    Note: Free proxies can be unstable. If a site fails to load, try a different preset or disable the proxy.
+                  </div>
+                </div>
+              </Section>
+            </>
+          )}
+
           {activeTab === 'shortcuts' && (
             <Section title="Keyboard Shortcuts">
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, fontStyle: 'italic' }}>
                 Click a shortcut to record a new key combination.
               </div>
               <ShortcutRow action="new-tab" label="New Tab" combo={settings.shortcuts['new-tab']} />
+              <ShortcutRow action="new-window" label="New Window" combo={settings.shortcuts['new-window']} />
               <ShortcutRow action="close-tab" label="Close Tab" combo={settings.shortcuts['close-tab']} />
               <ShortcutRow action="reload" label="Reload Page" combo={settings.shortcuts['reload']} />
               <ShortcutRow action="focus-urlbar" label="Focus URL Bar" combo={settings.shortcuts['focus-urlbar']} />

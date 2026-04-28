@@ -23,8 +23,9 @@ function createTab(url = 'about:newtab') {
     canGoForward: false,
     error: null,
     hasVideo: false,
-    videoTracks: [], // { id, label, language, active }
-    logs: [],        // { type: 'log'|'warn'|'error', message, time }
+    videoTracks: [],
+    logs: [],
+    pinned: false,
   };
 }
 
@@ -329,7 +330,8 @@ export default function App() {
   const [showConsole, setShowConsole]       = useState(false);
   const [consoleHeight, setConsoleHeight]   = useState(260);
   const [isResizing, setIsResizing]         = useState(false);
-  const [contextMenu, setContextMenu]       = useState(null); // { x, y, tabId, params }
+  const [contextMenu, setContextMenu]       = useState(null); // { x, y, tabId, params, type: 'webview'|'tab' }
+  const [dragTabId, setDragTabId]           = useState(null);
   const [promptValue, setPromptValue]       = useState(''); // for controlled prompt input
   const [settings, setSettings]             = useState(null);
 
@@ -370,6 +372,43 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const togglePin = useCallback((id) => {
+    setTabs(ts => {
+      const idx = ts.findIndex(t => t.id === id);
+      if (idx === -1) return ts;
+      const tab = { ...ts[idx], pinned: !ts[idx].pinned };
+      const others = ts.filter(t => t.id !== id);
+      
+      if (tab.pinned) {
+        // Find last pinned tab to insert after it
+        const lastPinnedIdx = [...others].reverse().findIndex(t => t.pinned);
+        const insertAt = lastPinnedIdx === -1 ? 0 : others.length - lastPinnedIdx;
+        const next = [...others];
+        next.splice(insertAt, 0, tab);
+        return next;
+      } else {
+        // Find first non-pinned tab to insert before it
+        const firstNonPinned = others.findIndex(t => !t.pinned);
+        const next = [...others];
+        if (firstNonPinned === -1) next.push(tab);
+        else next.splice(firstNonPinned, 0, tab);
+        return next;
+      }
+    });
+  }, []);
+
+  const moveTab = useCallback((dragId, hoverId) => {
+    setTabs(ts => {
+      const dragIdx = ts.findIndex(t => t.id === dragId);
+      const hoverIdx = ts.findIndex(t => t.id === hoverId);
+      const newTabs = [...ts];
+      const [removed] = newTabs.splice(dragIdx, 1);
+      newTabs.splice(hoverIdx, 0, removed);
+      return newTabs;
+    });
+  }, []);
+
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
@@ -599,8 +638,13 @@ export default function App() {
         if (wv) wv.openDevTools();
         break;
       }
+      case 'new-window': {
+        window.electronAPI?.newWindow();
+        break;
+      }
     }
   }, [addTab, activeId, closeTab, reload, goBack, goForward, triggerPeek, openFile, loadSubtitles]);
+
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
@@ -849,13 +893,30 @@ export default function App() {
         </div>
 
         {/* Tabs container - no-drag because we want clicks to work */}
-        <div style={{ display: 'flex', gap: 4, overflow: 'hidden', alignItems: 'center', WebkitAppRegion: 'no-drag', appRegion: 'no-drag' }}>
+        <div 
+          style={{ display: 'flex', gap: 4, overflow: 'hidden', alignItems: 'center', WebkitAppRegion: 'no-drag', appRegion: 'no-drag' }}
+          onDragOver={e => e.preventDefault()}
+        >
           {tabs.map(tab => (
-            <Tab key={tab.id} tab={tab} isActive={tab.id === activeId}
+            <Tab 
+              key={tab.id} 
+              tab={tab} 
+              isActive={tab.id === activeId}
               onActivate={() => setActiveId(tab.id)}
-              onClose={() => closeTab(tab.id)} />
+              onClose={() => closeTab(tab.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu({ x: e.clientX, y: e.clientY, tabId: tab.id, type: 'tab', pinned: tab.pinned });
+              }}
+              onDragStart={() => setDragTabId(tab.id)}
+              onDragEnter={() => {
+                if (dragTabId && dragTabId !== tab.id) moveTab(dragTabId, tab.id);
+              }}
+              onDragEnd={() => setDragTabId(null)}
+            />
           ))}
         </div>
+
 
         {/* Draggable spacer to fill empty space and allow window dragging */}
         <div style={{ flex: 1, height: '100%', WebkitAppRegion: 'drag', appRegion: 'drag' }} />
@@ -1305,26 +1366,67 @@ export default function App() {
         )}
 
         {contextMenu && (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            params={contextMenu.params}
-            onClose={() => setContextMenu(null)}
-            onAction={(action, data) => {
-              const wv = webviewRefs.current[activeId];
-              if (!wv) return;
-              switch (action) {
-                case 'back':    wv.goBack(); break;
-                case 'forward': wv.goForward(); break;
-                case 'reload':  wv.reload(); break;
-                case 'new-tab': addTab(data); break;
-                case 'copy':    wv.copy(); break;
-                case 'copy-link': navigator.clipboard.writeText(data); break;
-                case 'inspect': wv.inspectElement(data.x, data.y); break;
-              }
+          <div 
+            style={{
+              position: 'absolute', top: contextMenu.y, left: contextMenu.x, zIndex: 11000,
+              minWidth: 180, background: 'var(--bg-elevated)', border: '1px solid var(--border-hover)',
+              borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)',
+              padding: '6px 0', animation: 'fadeIn 0.1s ease', pointerEvents: 'auto'
             }}
-          />
+            onClick={e => e.stopPropagation()}
+          >
+            {contextMenu.type === 'tab' ? (
+              <>
+                <button 
+                  onClick={() => { togglePin(contextMenu.tabId); setContextMenu(null); }}
+                  style={{
+                    padding: '8px 14px', fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.1s',
+                    border: 'none', background: 'none', width: '100%', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <Icon name="lock" size={14} color="currentColor" />
+                  <span style={{ flex: 1 }}>{contextMenu.pinned ? 'Unpin Tab' : 'Pin Tab'}</span>
+                </button>
+                <button 
+                  onClick={() => { closeTab(contextMenu.tabId); setContextMenu(null); }}
+                  style={{
+                    padding: '8px 14px', fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.1s',
+                    border: 'none', background: 'none', width: '100%', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <Icon name="close" size={14} color="currentColor" />
+                  <span style={{ flex: 1 }}>Close Tab</span>
+                </button>
+              </>
+            ) : (
+              <ContextMenu
+                x={0} y={0} // Position is handled by parent
+                params={contextMenu.params}
+                onClose={() => setContextMenu(null)}
+                onAction={(action, data) => {
+                  const wv = webviewRefs.current[activeId];
+                  if (!wv) return;
+                  switch (action) {
+                    case 'back':    wv.goBack(); break;
+                    case 'forward': wv.goForward(); break;
+                    case 'reload':  wv.reload(); break;
+                    case 'new-tab': addTab(data); break;
+                    case 'copy':    wv.copy(); break;
+                    case 'copy-link': navigator.clipboard.writeText(data); break;
+                    case 'inspect': wv.inspectElement(data.x, data.y); break;
+                  }
+                }}
+              />
+            )}
+          </div>
         )}
+
       </div>
     </div>
   );

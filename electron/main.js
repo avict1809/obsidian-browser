@@ -52,11 +52,18 @@ const DEFAULT_SETTINGS = {
     'go-back':          { key: 'arrowleft',  ctrl: false, shift: false, alt: true },
     'go-forward':       { key: 'arrowright', ctrl: false, shift: false, alt: true },
     'toggle-visibility':{ key: 'g', ctrl: true,  shift: true,  alt: false },
+    'new-window':       { key: 'n', ctrl: true,  shift: false, alt: false },
   },
   startHidden: false,
+  proxy: {
+    enabled: false,
+    server: '',
+    preset: 'none'
+  }
 };
 
 let settings = { ...DEFAULT_SETTINGS };
+let windows = new Set();
 
 function getSettingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -67,7 +74,10 @@ function loadSettings() {
     const p = getSettingsPath();
     if (fs.existsSync(p)) {
       const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-      settings = { ...DEFAULT_SETTINGS, ...data, shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...data.shortcuts } };
+      settings = { ...DEFAULT_SETTINGS, ...data, 
+        shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...data.shortcuts },
+        proxy: { ...DEFAULT_SETTINGS.proxy, ...data.proxy }
+      };
     }
   } catch (err) {
     console.error('Failed to load settings:', err);
@@ -77,12 +87,27 @@ function loadSettings() {
 function saveSettings() {
   try {
     fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf8');
-    // Notify renderer if window exists
-    mainWindow?.webContents.send('settings-updated', settings);
+    // Notify all renderers
+    for (const win of windows) {
+      win.webContents.send('settings-updated', settings);
+    }
     // Update global shortcuts
     registerGlobalShortcuts();
+    // Update proxy for the shared session
+    applyProxyToSession();
   } catch (err) {
     console.error('Failed to save settings:', err);
+  }
+}
+
+async function applyProxyToSession() {
+  const ses = session.fromPartition(PARTITION);
+  if (settings.proxy.enabled && settings.proxy.server) {
+    console.log('Applying proxy:', settings.proxy.server);
+    await ses.setProxy({ proxyRules: settings.proxy.server });
+  } else {
+    console.log('Disabling proxy (direct connection)');
+    await ses.setProxy({ proxyRules: 'direct://' });
   }
 }
 
@@ -94,17 +119,13 @@ function registerGlobalShortcuts() {
     const accel = `${v.ctrl ? 'CommandOrControl+' : ''}${v.shift ? 'Shift+' : ''}${v.alt ? 'Alt+' : ''}${v.key.toUpperCase()}`;
     const success = globalShortcut.register(accel, () => {
       console.log(`Global shortcut ${accel} pressed`);
-      if (mainWindow) {
-        if (mainWindow.isVisible()) {
-          console.log('Hiding window');
-          mainWindow.hide();
+      for (const win of windows) {
+        if (win.isVisible()) {
+          win.hide();
         } else {
-          console.log('Showing window');
-          mainWindow.show();
-          mainWindow.focus();
+          win.show();
+          win.focus();
         }
-      } else {
-        console.log('Shortcut pressed but mainWindow is null');
       }
     });
     console.log(`Registration of ${accel}: ${success ? 'SUCCESS' : 'FAILED'}`);
@@ -112,45 +133,40 @@ function registerGlobalShortcuts() {
 }
 
 // ── Persist user sessions across restarts ──────────────────────────────────
-// Electron uses a named session partition — 'persist:obsidian' means cookies,
-// localStorage, IndexedDB and login tokens are all saved to disk between sessions.
-// Without this every restart would log you out of every site.
 const PARTITION = 'persist:obsidian';
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  let win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    frame: false,           // custom titlebar
+    frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0a0a0b',
-    show: false,            // show only once ready-to-show fires
+    show: false,
     icon: path.join(__dirname, '../assets/icon.png'),
     hasShadow: false,
-    skipTaskbar: settings.skipTaskbar,      // Dynamic from settings
-    alwaysOnTop: settings.alwaysOnTop,      // Dynamic from settings
+    skipTaskbar: settings.skipTaskbar,
+    alwaysOnTop: settings.alwaysOnTop,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webviewTag: true,       // CRITICAL — enables <webview> in renderer
+      webviewTag: true,
       preload: path.join(__dirname, 'preload.js'),
       session: session.fromPartition(PARTITION),
-      plugins: true,          // Enable PDF viewer and other plugins
+      plugins: true,
     },
-
   });
 
-  // Make window invisible to screen captures and screen sharing
-  mainWindow.setContentProtection(true);
+  windows.add(win);
+  win.setContentProtection(true);
 
-  // Stay invisible on startup if 'startHidden' is enabled
-  mainWindow.once('ready-to-show', () => {
-    if (settings.startHidden) {
-      console.log('Window ready-to-show (staying hidden for stealth mode)');
+  win.once('ready-to-show', () => {
+    if (settings.startHidden && windows.size === 1) {
+      console.log('First window ready-to-show (staying hidden for stealth mode)');
     } else {
-      mainWindow.show();
+      win.show();
     }
   });
 
@@ -158,23 +174,31 @@ function createWindow() {
     ? 'http://localhost:5173'
     : `file://${path.join(__dirname, '../dist/index.html')}`;
 
-  mainWindow.loadURL(startUrl);
+  win.loadURL(startUrl);
 
-  // Forward window state to renderer for titlebar controls
-  mainWindow.on('maximize',   () => mainWindow.webContents.send('window-state', 'maximized'));
-  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-state', 'normal'));
-  mainWindow.on('focus',      () => mainWindow.webContents.send('window-focus', true));
-  mainWindow.on('blur',       () => mainWindow.webContents.send('window-focus', false));
+  win.on('maximize',   () => win.webContents.send('window-state', 'maximized'));
+  win.on('unmaximize', () => win.webContents.send('window-state', 'normal'));
+  win.on('focus',      () => win.webContents.send('window-focus', true));
+  win.on('blur',       () => win.webContents.send('window-focus', false));
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  win.on('closed', () => { windows.delete(win); });
+
+  // Apply initial proxy
+  applyProxyToSession();
+
+  return win;
 }
 
 // ── IPC: Window controls ───────────────────────────────────────────────────
-ipcMain.on('window-minimize',  () => mainWindow?.minimize());
-ipcMain.on('window-maximize',  () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize());
-ipcMain.on('window-close',     () => mainWindow?.close());
-ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
-ipcMain.on('window-toggle-devtools', () => mainWindow?.webContents.toggleDevTools());
+ipcMain.on('window-minimize',  (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
+ipcMain.on('window-maximize',  (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.isMaximized() ? win.unmaximize() : win.maximize();
+});
+ipcMain.on('window-close',     (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+ipcMain.handle('window-is-maximized', (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
+ipcMain.on('window-toggle-devtools', (event) => BrowserWindow.fromWebContents(event.sender)?.webContents.toggleDevTools());
+ipcMain.on('window-new', () => createWindow());
 
 // ── IPC: Settings ──────────────────────────────────────────────────────────
 ipcMain.handle('settings-get', () => settings);
@@ -184,12 +208,12 @@ ipcMain.handle('settings-set', (_, newSettings) => {
   
   settings = { ...settings, ...newSettings };
   
-  if (mainWindow) {
+  for (const win of windows) {
     if (settings.alwaysOnTop !== oldAlwaysOnTop) {
-      mainWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+      win.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
     }
     if (settings.skipTaskbar !== oldSkipTaskbar) {
-      mainWindow.setSkipTaskbar(settings.skipTaskbar);
+      win.setSkipTaskbar(settings.skipTaskbar);
     }
   }
   
@@ -198,9 +222,9 @@ ipcMain.handle('settings-set', (_, newSettings) => {
 });
 ipcMain.handle('settings-reset', () => {
   settings = { ...DEFAULT_SETTINGS };
-  if (mainWindow) {
-    mainWindow.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
-    mainWindow.setSkipTaskbar(settings.skipTaskbar);
+  for (const win of windows) {
+    win.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+    win.setSkipTaskbar(settings.skipTaskbar);
   }
   saveSettings();
   return settings;

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFileText: (path) => ipcRenderer.invoke('read-file-text', path),
   checkMatchingSubtitle: (vPath) => ipcRenderer.invoke('check-matching-subtitle', vPath),
   toggleDevTools: () => ipcRenderer.send('window-toggle-devtools'),
+  newWindow: () => ipcRenderer.send('window-new'),
 
   // Webview session setup
   setupWebviewSession: (id) => ipcRenderer.send('setup-webview-session', id),

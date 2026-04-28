@@ -94,14 +94,23 @@ function Spinner({ size = 14, color = 'var(--amber)' }) {
 
 // ─── Tab Component ────────────────────────────────────────────────────────────
 
-function Tab({ tab, isActive, onActivate, onClose }) {
+function Tab({ tab, isActive, onActivate, onClose, onContextMenu, onDragStart, onDragEnter, onDragEnd }) {
+  const isPinned = tab.pinned;
+  
   return (
     <div
       onClick={onActivate}
+      onContextMenu={onContextMenu}
+      draggable={!isPinned}
+      onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
+      onDragEnd={onDragEnd}
       style={{
-        display: 'flex', alignItems: 'center', gap: 7,
-        padding: '0 10px 0 10px', height: 36,
-        maxWidth: 220, minWidth: 120, flex: '1 1 0',
+        display: 'flex', alignItems: 'center', gap: isPinned ? 0 : 7,
+        padding: isPinned ? '0' : '0 10px', height: 36,
+        maxWidth: isPinned ? 44 : 220, 
+        minWidth: isPinned ? 44 : 120, 
+        flex: isPinned ? '0 0 auto' : '1 1 0',
         background: isActive ? 'var(--bg-elevated)' : 'transparent',
         border: '1px solid',
         borderColor: isActive ? 'var(--border-hover)' : 'transparent',
@@ -110,6 +119,7 @@ function Tab({ tab, isActive, onActivate, onClose }) {
         transition: 'all 0.15s ease',
         position: 'relative',
         overflow: 'hidden',
+        justifyContent: isPinned ? 'center' : 'flex-start',
       }}
       onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
       onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
@@ -126,33 +136,46 @@ function Tab({ tab, isActive, onActivate, onClose }) {
         )}
       </div>
 
-      {/* Title */}
-      <span style={{
-        flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        fontSize: 12, fontWeight: isActive ? 500 : 400,
-        color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-        transition: 'color 0.15s',
-      }}>
-        {tab.title || 'New Tab'}
-      </span>
+      {/* Title (Hidden if pinned) */}
+      {!isPinned && (
+        <span style={{
+          flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontSize: 12, fontWeight: isActive ? 500 : 400,
+          color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+          transition: 'color 0.15s',
+        }}>
+          {tab.title || 'New Tab'}
+        </span>
+      )}
 
-      {/* Close button */}
-      <button
-        onClick={e => { e.stopPropagation(); onClose(); }}
-        style={{
-          width: 18, height: 18, borderRadius: 4, border: 'none', background: 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', flexShrink: 0, padding: 0,
-          color: 'var(--text-muted)', transition: 'all 0.12s',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-      >
-        <Icon name="close" size={10} color="currentColor" />
-      </button>
+      {/* Close button (Hidden if pinned) */}
+      {!isPinned && (
+        <button
+          onClick={e => { e.stopPropagation(); onClose(); }}
+          style={{
+            width: 18, height: 18, borderRadius: 4, border: 'none', background: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0, padding: 0,
+            color: 'var(--text-muted)', transition: 'all 0.12s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+        >
+          <Icon name="close" size={10} color="currentColor" />
+        </button>
+      )}
+
+      {/* Pin indicator dot */}
+      {isPinned && isActive && (
+        <div style={{
+          position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)',
+          width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)'
+        }} />
+      )}
     </div>
   );
 }
+
 
 // ─── URL Bar ──────────────────────────────────────────────────────────────────
 
