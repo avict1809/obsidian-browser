@@ -288,47 +288,36 @@ export default function SettingsPage() {
                     scrollbarWidth: 'thin', scrollbarColor: 'var(--border) transparent'
                   }}>
                     {[
-                      { ip: '104.238.130.121:443', country: 'US Reliable', type: 'Elite' },
-                      { ip: '192.252.208.70:14282', country: 'US Fast', type: 'Elite' },
-                      { ip: '45.56.126.176:1080', country: 'US Stable', type: 'Elite' },
-                      { ip: '174.138.119.88:80', country: 'United States', type: 'Elite' },
-                      { ip: '203.95.197.116:8080', country: 'Cambodia', type: 'Elite' },
-                      { ip: '47.250.155.254:4145', country: 'Malaysia', type: 'Elite' },
-                      { ip: '39.102.213.187:8181', country: 'China', type: 'Elite' },
-                      { ip: '8.221.141.88:9507', country: 'Japan', type: 'Elite' },
-                      { ip: '222.98.121.226:80', country: 'South Korea', type: 'Transparent' },
-                      { ip: '83.168.74.163:8080', country: 'Poland', type: 'Elite' },
-                      { ip: '212.127.95.235:8081', country: 'Poland', type: 'Elite' },
-                      { ip: '39.102.214.208:10002', country: 'China', type: 'Elite' },
-                      { ip: '47.238.134.126:808', country: 'Hong Kong', type: 'Elite' },
-                      { ip: '47.74.46.81:8047', country: 'Japan', type: 'Elite' },
-                      { ip: '47.250.51.11:5007', country: 'Malaysia', type: 'Elite' },
-                      { ip: '8.211.42.167:8005', country: 'Germany', type: 'Elite' },
-                      { ip: '47.90.149.238:3128', country: 'United States', type: 'Elite' },
-                      { ip: '47.238.134.126:51', country: 'Hong Kong', type: 'Elite' },
-                      { ip: '8.137.38.48:8080', country: 'China', type: 'Elite' },
-                      { ip: '47.237.92.86:1025', country: 'Singapore', type: 'Elite' },
-                      { ip: '47.237.92.86:5060', country: 'Singapore', type: 'Elite' },
-                      { ip: '47.237.92.86:3129', country: 'Singapore', type: 'Elite' },
-                      { ip: '8.213.197.208:1081', country: 'Thailand', type: 'Elite' },
-                      { ip: '47.250.155.254:3129', country: 'Malaysia', type: 'Elite' },
-                      { ip: '8.148.23.202:80', country: 'China', type: 'Elite' },
-                      { ip: '47.250.155.254:8888', country: 'Malaysia', type: 'Elite' },
-                      { ip: '129.150.39.242:8118', country: 'Singapore', type: 'Elite' },
-                      { ip: '8.148.23.202:4006', country: 'China', type: 'Elite' },
-                      { ip: '79.110.202.131:8081', country: 'Poland', type: 'Elite' },
-                      { ip: '12.49.24.22:8080', country: 'United States', type: 'Transparent' },
-                      { ip: '101.200.158.109:8800', country: 'China', type: 'Elite' },
-                      { ip: '47.238.60.156:8080', country: 'Hong Kong', type: 'Elite' },
-                      { ip: '103.160.40.10:8080', country: 'Indonesia', type: 'Transparent' },
-                      { ip: '103.133.26.11:8080', country: 'Indonesia', type: 'Anonymous' },
-                      { ip: '190.15.194.72:8080', country: 'Argentina', type: 'Anonymous' },
-                      { ip: '103.124.137.15:20', country: 'Indonesia', type: 'Transparent' },
-                      { ip: '191.37.66.225:8080', country: 'Brazil', type: 'Transparent' },
+                      { ip: '168.144.75.9:3128', country: 'United States', type: 'Elite (Priority)', protocol: 'http' },
+                      { ip: '174.138.119.88:80', country: 'United States', type: 'Elite', protocol: 'http' },
+                      { ip: '83.168.74.163:8080', country: 'Poland', type: 'Elite', protocol: 'http' },
+                      { ip: '212.127.95.235:8081', country: 'Poland', type: 'Elite', protocol: 'http' },
+                      { ip: '79.110.202.131:8081', country: 'Poland', type: 'Elite', protocol: 'http' },
+                      { ip: '203.95.197.116:8080', country: 'Cambodia', type: 'Elite', protocol: 'http' },
+                      { ip: '47.238.134.126:808', country: 'Hong Kong', type: 'Elite', protocol: 'http' },
+                      { ip: '39.102.214.208:10002', country: 'China', type: 'Elite', protocol: 'socks5' },
+                      { ip: '8.211.42.167:8005', country: 'Germany', type: 'Elite', protocol: 'http' },
+                      { ip: '104.238.130.121:443', country: 'United States', type: 'Elite', protocol: 'socks5' },
+                      { ip: '192.252.208.70:14282', country: 'United States', type: 'Elite', protocol: 'socks5' },
+                      { ip: '45.56.126.176:1080', country: 'United States', type: 'Elite', protocol: 'socks5' },
+                      { ip: '47.250.155.254:4145', country: 'Malaysia', type: 'Elite', protocol: 'socks5' },
+                      { ip: '39.102.213.187:8181', country: 'China', type: 'Elite', protocol: 'http' },
+                      { ip: '8.221.141.88:9507', country: 'Japan', type: 'Elite', protocol: 'socks5' },
+                      { ip: '47.74.46.81:8047', country: 'Japan', type: 'Elite', protocol: 'http' },
+                      { ip: '47.250.51.11:5007', country: 'Malaysia', type: 'Elite', protocol: 'http' },
+                      { ip: '47.90.149.238:3128', country: 'United States', type: 'Elite', protocol: 'http' },
+                      { ip: '8.137.38.48:8080', country: 'China', type: 'Elite', protocol: 'http' },
+                      { ip: '47.237.92.86:1025', country: 'Singapore', type: 'Elite', protocol: 'http' },
+                      { ip: '8.213.197.208:1081', country: 'Thailand', type: 'Elite', protocol: 'socks5' },
+                      { ip: '47.250.155.254:3129', country: 'Malaysia', type: 'Elite', protocol: 'http' },
+                      { ip: '8.148.23.202:80', country: 'China', type: 'Elite', protocol: 'http' },
+                      { ip: '129.150.39.242:8118', country: 'Singapore', type: 'Elite', protocol: 'http' },
+                      { ip: '101.200.158.109:8800', country: 'China', type: 'Elite', protocol: 'http' },
+                      { ip: '47.238.60.156:8080', country: 'Hong Kong', type: 'Elite', protocol: 'http' },
                     ].map(p => {
-                      const protocol = p.ip.includes(':4145') || p.ip.includes(':1081') || p.ip.includes(':1080') || p.ip.includes(':10002') ? 'socks5' : 'http';
-                      const fullUrl = `${protocol}://${p.ip}`;
+                      const fullUrl = `${p.protocol}://${p.ip}`;
                       const isSelected = settings.proxy.server === fullUrl;
+                      const isPriority = p.type.includes('Priority');
                       
                       return (
                         <div 
@@ -339,35 +328,36 @@ export default function SettingsPage() {
                           style={{
                             display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
                             background: isSelected ? 'var(--amber-dim)' : 'var(--bg-surface)',
-                            border: '1px solid', borderColor: isSelected ? 'var(--amber)' : 'var(--border)',
+                            border: '1px solid', borderColor: isSelected ? 'var(--amber)' : (isPriority ? 'rgba(232, 160, 48, 0.3)' : 'var(--border)'),
                             borderRadius: 10, cursor: 'pointer', transition: 'all 0.12s',
-                            position: 'relative'
+                            position: 'relative',
+                            boxShadow: isPriority ? '0 0 15px rgba(232, 160, 48, 0.05)' : 'none'
                           }}
                           onMouseEnter={e => !isSelected && (e.currentTarget.style.borderColor = 'var(--border-hover)')}
-                          onMouseLeave={e => !isSelected && (e.currentTarget.style.borderColor = 'var(--border)')}
+                          onMouseLeave={e => !isSelected && (e.currentTarget.style.borderColor = isPriority ? 'rgba(232, 160, 48, 0.3)' : 'var(--border)')}
                         >
                           <div style={{ 
-                            width: 32, height: 22, background: 'rgba(255,255,255,0.05)', 
+                            width: 32, height: 22, background: isPriority ? 'rgba(232, 160, 48, 0.1)' : 'rgba(255,255,255,0.05)', 
                             borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 10, fontWeight: 700, color: 'var(--text-muted)'
+                            fontSize: 10, fontWeight: 700, color: isPriority ? 'var(--amber)' : 'var(--text-muted)'
                           }}>
                             {p.country.substring(0, 2).toUpperCase()}
                           </div>
                           
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--amber)' : 'var(--text-primary)' }}>
-                              {p.country}
+                              {p.country} {isPriority && <span style={{ color: 'var(--amber)', fontSize: 8, verticalAlign: 'middle', marginLeft: 4 }}>★</span>}
                             </div>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                              {p.ip} <span style={{ opacity: 0.5 }}>({protocol})</span>
+                              {p.ip} <span style={{ opacity: 0.5 }}>({p.protocol})</span>
                             </div>
                           </div>
 
                           <div style={{ 
                             fontSize: 9, padding: '2px 6px', borderRadius: 4,
-                            background: p.type === 'Elite' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                            color: p.type === 'Elite' ? '#22c55e' : 'var(--text-muted)',
-                            border: '1px solid', borderColor: p.type === 'Elite' ? 'rgba(34, 197, 94, 0.2)' : 'transparent'
+                            background: 'rgba(34, 197, 94, 0.1)',
+                            color: '#22c55e',
+                            border: '1px solid rgba(34, 197, 94, 0.2)'
                           }}>
                             {p.type}
                           </div>
@@ -375,6 +365,8 @@ export default function SettingsPage() {
                       );
                     })}
                   </div>
+
+
 
 
 

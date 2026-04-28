@@ -28,6 +28,9 @@ const PARTITION = 'persist:obsidian';
 // Aggressively ignore certificate errors for proxy compatibility
 app.commandLine.appendSwitch('ignore-certificate-errors');
 app.commandLine.appendSwitch('allow-insecure-localhost');
+app.commandLine.appendSwitch('disable-http2');
+app.commandLine.appendSwitch('disable-quic');
+
 
 console.log('Is dev mode:', isDev);
 console.log('NODE_ENV:', process.env.NODE_ENV);
@@ -269,12 +272,53 @@ ipcMain.handle('proxy-test', async (_, proxyServer) => {
 });
 
 
+// Initialize session listeners
+function initSession() {
+  const sess = session.fromPartition(PARTITION);
+  sess.on('will-download', (event, item, webContents) => {
+    console.log('Main: Download starting:', item.getFilename());
+    
+    // If we don't set a save path, Electron prompts the user (Save As)
+    // We can also suggest a filename
+    const filename = item.getFilename();
+    const extension = filename.split('.').pop();
+    
+    // Optional: add listener for progress
+    item.on('updated', (event, state) => {
+      if (state === 'interrupted') console.log('Download interrupted');
+      else if (state === 'progressing') {
+        if (item.isPaused()) console.log('Download paused');
+        else {
+          // Send progress to renderer if needed
+          const win = BrowserWindow.getFocusedWindow();
+          if (win) win.webContents.send('download-progress', {
+            filename: item.getFilename(),
+            received: item.getReceivedBytes(),
+            total: item.getTotalBytes()
+          });
+        }
+      }
+    });
+    
+    item.once('done', (event, state) => {
+      console.log('Main: Download done:', state);
+      const win = BrowserWindow.getFocusedWindow();
+      if (win) win.webContents.send('download-done', {
+        filename: item.getFilename(),
+        state,
+        savePath: item.getSavePath()
+      });
+    });
+  });
+}
+
 ipcMain.on('download-url', (event, url) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) {
-    win.webContents.downloadURL(url);
-  }
+  console.log('Main: Triggering download for:', url);
+  const sess = session.fromPartition(PARTITION);
+  sess.downloadURL(url);
 });
+
+
 
 ipcMain.on('open-external', (_, url) => shell.openExternal(url));
 
@@ -440,6 +484,7 @@ ipcMain.handle('auth-set-password', (_, pin) => {
 // ── App lifecycle ──────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   loadSettings();
+  initSession();
 
   // Set default theme to light so that web content (prefers-color-scheme) 
   // doesn't automatically switch to dark mode. The browser shell remains dark.
