@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon, TBtn } from './components.jsx';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState(null);
+  const proxyTestBtnRef = useRef(null);
+
   const [activeTab, setActiveTab] = useState('general');
   const [recording, setRecording] = useState(null); // { action, combo }
 
@@ -204,7 +206,48 @@ export default function SettingsPage() {
                 />
 
                 <div style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)', marginTop: 16 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, marginBottom: 8 }}>Proxy Server Address</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>Proxy Server Address</div>
+                    <button 
+                      ref={proxyTestBtnRef}
+                      onClick={async () => {
+                        if (!settings.proxy.server) return;
+                        const btn = proxyTestBtnRef.current;
+                        const originalText = btn.innerText;
+                        const originalColor = btn.style.color;
+                        
+                        try {
+                          btn.innerText = 'Testing...';
+                          btn.disabled = true;
+                          console.log('Starting proxy test for:', settings.proxy.server);
+                          
+                          const res = await window.electronAPI?.proxyTest(settings.proxy.server);
+                          console.log('Proxy test result:', res);
+                          
+                          btn.innerText = res?.success ? 'Success!' : 'Failed';
+                          btn.style.color = res?.success ? 'var(--amber)' : 'var(--red)';
+                        } catch (err) {
+                          console.error('Proxy test error:', err);
+                          btn.innerText = 'Error';
+                          btn.style.color = 'var(--red)';
+                        } finally {
+                          setTimeout(() => {
+                            if (btn) {
+                              btn.innerText = originalText;
+                              btn.disabled = false;
+                              btn.style.color = originalColor || 'var(--text-secondary)';
+                            }
+                          }, 3000);
+                        }
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                        borderRadius: 6, padding: '2px 8px', fontSize: 10, color: 'var(--text-secondary)',
+                        cursor: 'pointer', transition: 'all 0.12s'
+                      }}
+                    >Test Connection</button>
+
+                  </div>
                   <input 
                     value={settings.proxy.server}
                     onChange={e => updateSettings({ proxy: { ...settings.proxy, server: e.target.value, preset: 'custom' } })}
@@ -215,33 +258,126 @@ export default function SettingsPage() {
                       fontSize: 12, outline: 'none', fontFamily: 'var(--font-mono)'
                     }}
                   />
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>Supports http, https, socks4, and socks5 protocols.</div>
                 </div>
 
-                <div style={{ marginTop: 24 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Free Proxy Presets</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    {[
-                      { name: 'US East (SOCKS5)', server: 'socks5://72.210.252.134:46164' },
-                      { name: 'US West (SOCKS5)', server: 'socks5://98.162.25.23:4145' },
-                      { name: 'Germany (HTTP)', server: 'http://45.152.188.246:3128' },
-                      { name: 'France (HTTP)', server: 'http://51.159.115.233:3128' },
-                    ].map(p => (
-                      <button 
-                        key={p.name}
-                        onClick={() => updateSettings({ proxy: { ...settings.proxy, server: p.server, preset: p.name } })}
-                        style={{
-                          padding: '12px', background: settings.proxy.server === p.server ? 'var(--amber-dim)' : 'var(--bg-surface)',
-                          border: '1px solid', borderColor: settings.proxy.server === p.server ? 'var(--amber)' : 'var(--border)',
-                          borderRadius: 10, color: settings.proxy.server === p.server ? 'var(--amber)' : 'var(--text-secondary)',
-                          fontSize: 12, cursor: 'pointer', textAlign: 'left', transition: 'all 0.12s'
+                <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', height: 400 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Proxy Cloud</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input 
+                        type="text" 
+                        placeholder="Search country..." 
+                        onChange={(e) => {
+                          const term = e.target.value.toLowerCase();
+                          document.querySelectorAll('.proxy-item').forEach(el => {
+                            const country = el.getAttribute('data-country').toLowerCase();
+                            el.style.display = country.includes(term) ? 'flex' : 'none';
+                          });
                         }}
-                      >
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
-                        <div style={{ fontSize: 10, opacity: 0.6, fontFamily: 'var(--font-mono)' }}>{p.server}</div>
-                      </button>
-                    ))}
+                        style={{
+                          background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                          padding: '4px 8px', fontSize: 10, color: 'var(--text-secondary)', outline: 'none'
+                        }}
+                      />
+                    </div>
                   </div>
+
+                  <div style={{ 
+                    flex: 1, overflowY: 'auto', paddingRight: 8,
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                    scrollbarWidth: 'thin', scrollbarColor: 'var(--border) transparent'
+                  }}>
+                    {[
+                      { ip: '104.238.130.121:443', country: 'US Reliable', type: 'Elite' },
+                      { ip: '192.252.208.70:14282', country: 'US Fast', type: 'Elite' },
+                      { ip: '45.56.126.176:1080', country: 'US Stable', type: 'Elite' },
+                      { ip: '174.138.119.88:80', country: 'United States', type: 'Elite' },
+                      { ip: '203.95.197.116:8080', country: 'Cambodia', type: 'Elite' },
+                      { ip: '47.250.155.254:4145', country: 'Malaysia', type: 'Elite' },
+                      { ip: '39.102.213.187:8181', country: 'China', type: 'Elite' },
+                      { ip: '8.221.141.88:9507', country: 'Japan', type: 'Elite' },
+                      { ip: '222.98.121.226:80', country: 'South Korea', type: 'Transparent' },
+                      { ip: '83.168.74.163:8080', country: 'Poland', type: 'Elite' },
+                      { ip: '212.127.95.235:8081', country: 'Poland', type: 'Elite' },
+                      { ip: '39.102.214.208:10002', country: 'China', type: 'Elite' },
+                      { ip: '47.238.134.126:808', country: 'Hong Kong', type: 'Elite' },
+                      { ip: '47.74.46.81:8047', country: 'Japan', type: 'Elite' },
+                      { ip: '47.250.51.11:5007', country: 'Malaysia', type: 'Elite' },
+                      { ip: '8.211.42.167:8005', country: 'Germany', type: 'Elite' },
+                      { ip: '47.90.149.238:3128', country: 'United States', type: 'Elite' },
+                      { ip: '47.238.134.126:51', country: 'Hong Kong', type: 'Elite' },
+                      { ip: '8.137.38.48:8080', country: 'China', type: 'Elite' },
+                      { ip: '47.237.92.86:1025', country: 'Singapore', type: 'Elite' },
+                      { ip: '47.237.92.86:5060', country: 'Singapore', type: 'Elite' },
+                      { ip: '47.237.92.86:3129', country: 'Singapore', type: 'Elite' },
+                      { ip: '8.213.197.208:1081', country: 'Thailand', type: 'Elite' },
+                      { ip: '47.250.155.254:3129', country: 'Malaysia', type: 'Elite' },
+                      { ip: '8.148.23.202:80', country: 'China', type: 'Elite' },
+                      { ip: '47.250.155.254:8888', country: 'Malaysia', type: 'Elite' },
+                      { ip: '129.150.39.242:8118', country: 'Singapore', type: 'Elite' },
+                      { ip: '8.148.23.202:4006', country: 'China', type: 'Elite' },
+                      { ip: '79.110.202.131:8081', country: 'Poland', type: 'Elite' },
+                      { ip: '12.49.24.22:8080', country: 'United States', type: 'Transparent' },
+                      { ip: '101.200.158.109:8800', country: 'China', type: 'Elite' },
+                      { ip: '47.238.60.156:8080', country: 'Hong Kong', type: 'Elite' },
+                      { ip: '103.160.40.10:8080', country: 'Indonesia', type: 'Transparent' },
+                      { ip: '103.133.26.11:8080', country: 'Indonesia', type: 'Anonymous' },
+                      { ip: '190.15.194.72:8080', country: 'Argentina', type: 'Anonymous' },
+                      { ip: '103.124.137.15:20', country: 'Indonesia', type: 'Transparent' },
+                      { ip: '191.37.66.225:8080', country: 'Brazil', type: 'Transparent' },
+                    ].map(p => {
+                      const protocol = p.ip.includes(':4145') || p.ip.includes(':1081') || p.ip.includes(':1080') || p.ip.includes(':10002') ? 'socks5' : 'http';
+                      const fullUrl = `${protocol}://${p.ip}`;
+                      const isSelected = settings.proxy.server === fullUrl;
+                      
+                      return (
+                        <div 
+                          key={p.ip}
+                          className="proxy-item"
+                          data-country={p.country}
+                          onClick={() => updateSettings({ proxy: { ...settings.proxy, server: fullUrl, preset: p.country } })}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                            background: isSelected ? 'var(--amber-dim)' : 'var(--bg-surface)',
+                            border: '1px solid', borderColor: isSelected ? 'var(--amber)' : 'var(--border)',
+                            borderRadius: 10, cursor: 'pointer', transition: 'all 0.12s',
+                            position: 'relative'
+                          }}
+                          onMouseEnter={e => !isSelected && (e.currentTarget.style.borderColor = 'var(--border-hover)')}
+                          onMouseLeave={e => !isSelected && (e.currentTarget.style.borderColor = 'var(--border)')}
+                        >
+                          <div style={{ 
+                            width: 32, height: 22, background: 'rgba(255,255,255,0.05)', 
+                            borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 10, fontWeight: 700, color: 'var(--text-muted)'
+                          }}>
+                            {p.country.substring(0, 2).toUpperCase()}
+                          </div>
+                          
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--amber)' : 'var(--text-primary)' }}>
+                              {p.country}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              {p.ip} <span style={{ opacity: 0.5 }}>({protocol})</span>
+                            </div>
+                          </div>
+
+                          <div style={{ 
+                            fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                            background: p.type === 'Elite' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                            color: p.type === 'Elite' ? '#22c55e' : 'var(--text-muted)',
+                            border: '1px solid', borderColor: p.type === 'Elite' ? 'rgba(34, 197, 94, 0.2)' : 'transparent'
+                          }}>
+                            {p.type}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+
+
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 12, fontStyle: 'italic' }}>
                     Note: Free proxies can be unstable. If a site fails to load, try a different preset or disable the proxy.
                   </div>

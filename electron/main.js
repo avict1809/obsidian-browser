@@ -23,6 +23,11 @@ console.warn = function (...args) {
 };
 
 const isDev = process.env.NODE_ENV === 'development';
+const PARTITION = 'persist:obsidian';
+
+// Aggressively ignore certificate errors for proxy compatibility
+app.commandLine.appendSwitch('ignore-certificate-errors');
+app.commandLine.appendSwitch('allow-insecure-localhost');
 
 console.log('Is dev mode:', isDev);
 console.log('NODE_ENV:', process.env.NODE_ENV);
@@ -133,7 +138,6 @@ function registerGlobalShortcuts() {
 }
 
 // ── Persist user sessions across restarts ──────────────────────────────────
-const PARTITION = 'persist:obsidian';
 
 function createWindow() {
   let win = new BrowserWindow({
@@ -231,15 +235,59 @@ ipcMain.handle('settings-reset', () => {
 });
 
 // ── IPC: Open external links in system browser ─────────────────────────────
+ipcMain.handle('proxy-test', async (_, proxyServer) => {
+  console.log('Main: Testing proxy:', proxyServer);
+  try {
+    const { net } = require('electron');
+    return new Promise((resolve) => {
+      const testSession = session.fromPartition('temp-proxy-test-' + Date.now());
+      testSession.setProxy({ proxyRules: proxyServer }).then(() => {
+        const testRequest = net.request({
+          url: 'https://www.google.com',
+          session: testSession,
+          method: 'GET'
+        });
+        
+        testRequest.on('response', (response) => {
+          console.log('Main: Proxy test response:', response.statusCode);
+          resolve({ success: response.statusCode === 200, status: response.statusCode });
+        });
+        testRequest.on('error', (err) => {
+          console.log('Main: Proxy test error:', err.message);
+          resolve({ success: false, error: err.message });
+        });
+        testRequest.end();
+        
+        // Faster timeout for a better UX
+        setTimeout(() => resolve({ success: false, error: 'Connection timed out' }), 4000);
+      });
+    });
+  } catch (err) {
+    console.error('Main: Proxy test crash:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+
+ipcMain.on('download-url', (event, url) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.webContents.downloadURL(url);
+  }
+});
+
 ipcMain.on('open-external', (_, url) => shell.openExternal(url));
+
 ipcMain.handle('open-file-dialog', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+  const { canceled, filePaths } = await dialog.showOpenDialog(null, {
+    title: 'Open File',
     properties: ['openFile'],
     filters: [
-      { name: 'Media & Documents', extensions: ['pdf', 'mp4', 'webm', 'ogg', 'mkv', 'avi', 'mov'] },
+      { name: 'Browser Supported Files', extensions: ['html', 'htm', 'pdf', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mp3', 'wav', 'ogg', 'svg'] },
       { name: 'All Files', extensions: ['*'] }
     ]
   });
+
   if (canceled) return null;
   return filePaths[0];
 });
@@ -522,6 +570,17 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
 
+
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  // If user wants to ignore cert errors, we could check a setting here.
+  // For now, let's allow it if the user is using a proxy, as it's common for them to have cert issues.
+  if (settings.proxy.enabled) {
+    event.preventDefault();
+    callback(true);
+  } else {
+    callback(false);
+  }
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

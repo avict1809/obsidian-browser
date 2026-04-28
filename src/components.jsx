@@ -74,6 +74,8 @@ const Icon = ({ name, size = 14, color = 'currentColor', style = {} }) => {
     trash:   <><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none"/></>,
     subtitles:<><rect x="3" y="5" width="18" height="14" rx="2" stroke={color} strokeWidth="1.6" fill="none"/><path d="M7 15h3M14 15h3M7 11h10" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/></>,
     eye:      <><circle cx="12" cy="12" r="3" stroke={color} strokeWidth="1.5" fill="none"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>,
+    pin:      <path d="M12 2v8m0 0 4 4m-4-4-4 4m4 8v-8M5 10h14" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/>,
+    download: <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14" stroke={color} strokeWidth="1.6" strokeLinecap="round" fill="none"/>,
   };
   return (
     <svg viewBox="0 0 24 24" style={s} aria-hidden="true">
@@ -94,8 +96,9 @@ function Spinner({ size = 14, color = 'var(--amber)' }) {
 
 // ─── Tab Component ────────────────────────────────────────────────────────────
 
-function Tab({ tab, isActive, onActivate, onClose, onContextMenu, onDragStart, onDragEnter, onDragEnd }) {
+function Tab({ tab, isActive, onActivate, onClose, onPin, onContextMenu, onDragStart, onDragEnter, onDragEnd }) {
   const isPinned = tab.pinned;
+  const [isHovered, setIsHovered] = useState(false);
   
   return (
     <div
@@ -121,18 +124,24 @@ function Tab({ tab, isActive, onActivate, onClose, onContextMenu, onDragStart, o
         overflow: 'hidden',
         justifyContent: isPinned ? 'center' : 'flex-start',
       }}
-      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+      onMouseEnter={() => { setIsHovered(true); if (!isActive) {} }}
+      onMouseLeave={() => { setIsHovered(false); if (!isActive) {} }}
     >
       {/* Favicon or spinner */}
-      <div style={{ width: 14, height: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 14, height: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {tab.loading ? (
           <Spinner size={13} />
         ) : tab.favicon ? (
-          <img src={tab.favicon} width={13} height={13} style={{ objectFit: 'contain', borderRadius: 2 }}
+          <img src={tab.favicon} width={13} height={13} style={{ objectFit: 'contain', borderRadius: 2, opacity: (isPinned && isHovered) ? 0.2 : 1 }}
             onError={e => e.target.style.display = 'none'} alt="" />
         ) : (
-          <Icon name="globe" size={13} color="var(--text-muted)" />
+          <Icon name="globe" size={13} color="var(--text-muted)" style={{ opacity: (isPinned && isHovered) ? 0.2 : 1 }} />
+        )}
+        
+        {isPinned && isHovered && (
+          <button onClick={(e) => { e.stopPropagation(); onPin(); }} style={{ position: 'absolute', inset: 0, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+            <Icon name="pin" size={10} color="var(--amber)" />
+          </button>
         )}
       </div>
 
@@ -148,33 +157,52 @@ function Tab({ tab, isActive, onActivate, onClose, onContextMenu, onDragStart, o
         </span>
       )}
 
-      {/* Close button (Hidden if pinned) */}
-      {!isPinned && (
-        <button
-          onClick={e => { e.stopPropagation(); onClose(); }}
-          style={{
-            width: 18, height: 18, borderRadius: 4, border: 'none', background: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', flexShrink: 0, padding: 0,
-            color: 'var(--text-muted)', transition: 'all 0.12s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-        >
-          <Icon name="close" size={10} color="currentColor" />
-        </button>
+      {/* Action Buttons (Hidden if pinned) */}
+      {!isPinned && isHovered && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <button
+            onClick={e => { e.stopPropagation(); onPin(); }}
+            style={{
+              width: 18, height: 18, borderRadius: 4, border: 'none', background: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0, padding: 0,
+              color: 'var(--text-muted)', transition: 'all 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'var(--amber)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            title="Pin Tab"
+          >
+            <Icon name="pin" size={10} color="currentColor" />
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); onClose(); }}
+            style={{
+              width: 18, height: 18, borderRadius: 4, border: 'none', background: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0, padding: 0,
+              color: 'var(--text-muted)', transition: 'all 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'var(--red)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            title="Close Tab"
+          >
+            <Icon name="close" size={10} color="currentColor" />
+          </button>
+        </div>
       )}
 
       {/* Pin indicator dot */}
-      {isPinned && isActive && (
+      {isPinned && !isHovered && (
         <div style={{
           position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)',
-          width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)'
+          width: 4, height: 4, borderRadius: '50%', background: isActive ? 'var(--amber)' : 'var(--text-muted)',
+          opacity: isActive ? 1 : 0.5
         }} />
       )}
     </div>
   );
 }
+
 
 
 // ─── URL Bar ──────────────────────────────────────────────────────────────────

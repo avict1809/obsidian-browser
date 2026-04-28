@@ -304,6 +304,14 @@ function ContextMenu({ x, y, params, onAction, onClose }) {
       {params.selectionText && (
         <MenuItem icon="history" label="Copy Selection" onClick={() => onAction('copy')} />
       )}
+      {params.srcURL && (
+        <>
+          <MenuItem icon="search" label="Open Image in New Tab" onClick={() => onAction('new-tab', params.srcURL)} />
+          <MenuItem icon="download" label="Save Image As..." onClick={() => onAction('download', params.srcURL)} />
+          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+        </>
+      )}
+
       <MenuItem icon="search" label="Inspect" onClick={() => onAction('inspect', { x: params.x, y: params.y })} />
     </div>
   );
@@ -354,6 +362,7 @@ export default function App() {
   }, []);
 
   const closeTab = useCallback((id) => {
+    console.log('Closing tab:', id);
     attachedWebviews.current.delete(id);
     delete webviewRefs.current[id];
 
@@ -375,28 +384,13 @@ export default function App() {
 
   const togglePin = useCallback((id) => {
     setTabs(ts => {
-      const idx = ts.findIndex(t => t.id === id);
-      if (idx === -1) return ts;
-      const tab = { ...ts[idx], pinned: !ts[idx].pinned };
-      const others = ts.filter(t => t.id !== id);
-      
-      if (tab.pinned) {
-        // Find last pinned tab to insert after it
-        const lastPinnedIdx = [...others].reverse().findIndex(t => t.pinned);
-        const insertAt = lastPinnedIdx === -1 ? 0 : others.length - lastPinnedIdx;
-        const next = [...others];
-        next.splice(insertAt, 0, tab);
-        return next;
-      } else {
-        // Find first non-pinned tab to insert before it
-        const firstNonPinned = others.findIndex(t => !t.pinned);
-        const next = [...others];
-        if (firstNonPinned === -1) next.push(tab);
-        else next.splice(firstNonPinned, 0, tab);
-        return next;
-      }
+      const updated = ts.map(t => t.id === id ? { ...t, pinned: !t.pinned } : t);
+      const pinned = updated.filter(t => t.pinned);
+      const unpinned = updated.filter(t => !t.pinned);
+      return [...pinned, ...unpinned];
     });
   }, []);
+
 
   const moveTab = useCallback((dragId, hoverId) => {
     setTabs(ts => {
@@ -904,6 +898,7 @@ export default function App() {
               isActive={tab.id === activeId}
               onActivate={() => setActiveId(tab.id)}
               onClose={() => closeTab(tab.id)}
+              onPin={() => togglePin(tab.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setContextMenu({ x: e.clientX, y: e.clientY, tabId: tab.id, type: 'tab', pinned: tab.pinned });
@@ -1373,8 +1368,10 @@ export default function App() {
               borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)',
               padding: '6px 0', animation: 'fadeIn 0.1s ease', pointerEvents: 'auto'
             }}
+            onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}
           >
+
             {contextMenu.type === 'tab' ? (
               <>
                 <button 
@@ -1411,6 +1408,7 @@ export default function App() {
                 onClose={() => setContextMenu(null)}
                 onAction={(action, data) => {
                   const wv = webviewRefs.current[activeId];
+                  console.log('Context menu action:', action, 'Active WV:', !!wv, 'Target Data:', data);
                   if (!wv) return;
                   switch (action) {
                     case 'back':    wv.goBack(); break;
@@ -1419,8 +1417,10 @@ export default function App() {
                     case 'new-tab': addTab(data); break;
                     case 'copy':    wv.copy(); break;
                     case 'copy-link': navigator.clipboard.writeText(data); break;
+                    case 'download': window.electronAPI?.downloadURL(data); break;
                     case 'inspect': wv.inspectElement(data.x, data.y); break;
                   }
+
                 }}
               />
             )}

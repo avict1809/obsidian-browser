@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkMatchingSubtitle: (vPath) => ipcRenderer.invoke('check-matching-subtitle', vPath),
   toggleDevTools: () => ipcRenderer.send('window-toggle-devtools'),
   newWindow: () => ipcRenderer.send('window-new'),
+  downloadURL: (url) => ipcRenderer.send('download-url', url),
 
   // Webview session setup
   setupWebviewSession: (id) => ipcRenderer.send('setup-webview-session', id),
@@ -29,6 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   settingsGet:   ()      => ipcRenderer.invoke('settings-get'),
   settingsSet:   (s)     => ipcRenderer.invoke('settings-set', s),
   settingsReset: ()      => ipcRenderer.invoke('settings-reset'),
+  proxyTest: (server)    => ipcRenderer.invoke('proxy-test', server),
 
   // Auth / PIN lock
   authHasPassword: ()      => ipcRenderer.invoke('auth-has-password'),
