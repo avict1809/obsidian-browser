@@ -4,6 +4,12 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
+
+// Configure logging for updates
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.forceDevUpdateConfig = true;
 
 // ── Suppress internal Electron webview errors ──────────────────────────────
 // GUEST_VIEW_MANAGER_CALL and ERR_ABORTED (-3) errors are internal to Electron's
@@ -290,6 +296,8 @@ function createWindow() {
   windows.add(win);
   win.setContentProtection(true);
 
+  if (!mainWindow) mainWindow = win;
+
   win.once('ready-to-show', () => {
     if (settings.startHidden && windows.size === 1) {
       console.log('First window ready-to-show (staying hidden for stealth mode)');
@@ -309,7 +317,10 @@ function createWindow() {
   win.on('focus',      () => win.webContents.send('window-focus', true));
   win.on('blur',       () => win.webContents.send('window-focus', false));
 
-  win.on('closed', () => { windows.delete(win); });
+  win.on('closed', () => { 
+    windows.delete(win); 
+    if (win === mainWindow) mainWindow = Array.from(windows)[0] || null;
+  });
 
   // Apply initial proxy
   applyProxyToSession();
@@ -365,7 +376,15 @@ ipcMain.on('tor-stop', () => stopTor());
 // ── IPC: Updates ───────────────────────────────────────────────────────────
 ipcMain.on('update-check', () => {
   console.log('Main: Manual update check requested');
-  autoUpdater.checkForUpdatesAndNotify();
+  try {
+    autoUpdater.checkForUpdatesAndNotify().catch(err => {
+      console.error('Update Check Error (Catch):', err.message);
+      broadcastUpdateStatus({ state: 'error', error: err.message });
+    });
+  } catch (err) {
+    console.error('Update Check Error (Sync):', err.message);
+    broadcastUpdateStatus({ state: 'error', error: err.message });
+  }
 });
 ipcMain.on('update-install', () => {
   console.log('Main: Quitting and installing update');
@@ -373,23 +392,33 @@ ipcMain.on('update-install', () => {
 });
 
 // ── AutoUpdater Events ─────────────────────────────────────────────────────
+function broadcastUpdateStatus(payload) {
+  for (const win of windows) {
+    if (!win.isDestroyed()) win.webContents.send('update-status', payload);
+  }
+}
+
 autoUpdater.on('checking-for-update', () => {
-  mainWindow?.webContents.send('update-status', { state: 'checking' });
+  broadcastUpdateStatus({ state: 'checking' });
 });
 autoUpdater.on('update-available', (info) => {
-  mainWindow?.webContents.send('update-status', { state: 'available', info });
+  broadcastUpdateStatus({ state: 'available', info });
 });
 autoUpdater.on('update-not-available', (info) => {
-  mainWindow?.webContents.send('update-status', { state: 'not-available', info });
+  broadcastUpdateStatus({ state: 'not-available', info });
+  // Reset to idle after 5 seconds
+  setTimeout(() => {
+    broadcastUpdateStatus({ state: 'idle' });
+  }, 5000);
 });
 autoUpdater.on('error', (err) => {
-  mainWindow?.webContents.send('update-status', { state: 'error', error: err.message });
+  broadcastUpdateStatus({ state: 'error', error: err.message });
 });
 autoUpdater.on('download-progress', (progress) => {
-  mainWindow?.webContents.send('update-status', { state: 'downloading', progress });
+  broadcastUpdateStatus({ state: 'downloading', progress });
 });
 autoUpdater.on('update-downloaded', (info) => {
-  mainWindow?.webContents.send('update-status', { state: 'downloaded', info });
+  broadcastUpdateStatus({ state: 'downloaded', info });
 });
 
 // ── IPC: Open external links in system browser ─────────────────────────────
@@ -643,6 +672,11 @@ app.whenReady().then(() => {
   
   // Check for updates on startup
   autoUpdater.checkForUpdatesAndNotify();
+
+  // Check for updates every 4 hours
+  setInterval(() => {
+    autoUpdater.checkForUpdatesAndNotify();
+  }, 4 * 60 * 60 * 1000);
 
   // Set default theme to light so that web content (prefers-color-scheme) 
   // doesn't automatically switch to dark mode. The browser shell remains dark.

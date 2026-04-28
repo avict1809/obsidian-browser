@@ -9,3 +9,5 @@ build/
 .idea/
 .vscode/
 .agent/
+token.txt
+dev-app-update.yml
