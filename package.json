@@ -1,6 +1,6 @@
 {
   "name": "obsidian-browser",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A clean, dark Electron browser with persistent sessions",
   "main": "electron/main.js",
   "author": "Obsidian Team",
