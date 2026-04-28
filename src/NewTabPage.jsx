@@ -124,6 +124,24 @@ export default function NewTabPage({ onNavigate }) {
               </span>
             </button>
           ))}
+
+          {/* Internal Game Link - MATCHING OTHER BUTTONS */}
+          <button onClick={() => onNavigate('about:game')} style={{
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)', padding: '14px 8px',
+            cursor: 'pointer', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: 8, transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; }}
+          >
+            <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-hover)', borderRadius: 4 }}>
+              <Icon name="zoom" size={13} color="var(--text-muted)" />
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.2, fontFamily: 'var(--font-ui)' }}>
+              Obsidian Defender
+            </span>
+          </button>
         </div>
       </div>
 

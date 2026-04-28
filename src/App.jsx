@@ -4,6 +4,7 @@ import NewTabPage from './NewTabPage.jsx';
 import SettingsPage from './SettingsPage.jsx';
 import LockScreen from './LockScreen.jsx';
 import DownloadsPanel from './DownloadsPanel.jsx';
+import NoirGame from './NoirGame.jsx';
 
 // ─── Tab factory ──────────────────────────────────────────────────────────────
 
@@ -11,6 +12,7 @@ let tabIdCounter = 1;
 function createTab(url = 'about:newtab') {
   let title = 'New Tab';
   if (url === 'about:settings') title = 'Settings';
+  if (url === 'about:game') title = 'Obsidian Racer';
   
   return {
     id: tabIdCounter++,
@@ -514,7 +516,7 @@ export default function App() {
     const tid = tabId ?? activeId;
     const normalized = normalizeUrl(url);
     setTabs(ts => ts.map(t => {
-      if (t.id === tid && (t.url === 'about:newtab' || t.url === 'about:blank')) {
+      if (t.id === tid && (t.url === 'about:newtab' || t.url === 'about:blank' || normalized.startsWith('about:'))) {
         return { ...t, url: normalized, initialUrl: normalized, loading: true, error: null };
       }
       return t;
@@ -1140,48 +1142,64 @@ export default function App() {
             }}>
               {tab.url === 'about:settings' ? (
                 <SettingsPage />
+              ) : tab.url === 'about:game' ? (
+                <NoirGame onExit={() => goHome()} />
               ) : (tab.url === 'about:newtab' || tab.url === 'about:blank') ? (
                 <NewTabPage onNavigate={url => navigate(url, tab.id)} />
-              ) : tab.error ? (
-                <div style={{
-                  width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40,
-                  background: 'var(--bg-base)', animation: 'fadeIn 0.3s ease',
-                }}>
-                  <div style={{ fontSize: 48, opacity: 0.3 }}>⚠</div>
-                  <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>Page couldn't load</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
-                    {tab.error.desc || 'The page failed to load.'}<br />
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-                      {tab.error.code && `Error ${tab.error.code}`}
-                    </span>
-                  </div>
-                  <button onClick={reload} style={{
-                    background: 'var(--amber)', border: 'none', borderRadius: 8, padding: '8px 20px',
-                    fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer',
-                    fontFamily: 'var(--font-ui)', transition: 'opacity 0.12s',
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                  >Try again</button>
-                </div>
               ) : (
-                <webview
-                  ref={wv => {
-                    if (wv && !webviewRefs.current[tab.id]) {
-                      webviewRefs.current[tab.id] = wv;
-                      attachWebviewEvents(wv, tab.id);
-                    }
-                    if (!wv) delete webviewRefs.current[tab.id];
-                  }}
-                  src={tab.initialUrl}
-                  partition="persist:obsidian"
-                  preload={webviewPreload}
-                  plugins="true"
-                  style={{ width: '100%', height: '100%', border: 'none', display: 'flex', background: '#fff' }}
-                  allowpopups="true"
-                  webpreferences="contextIsolation=yes"
-                />
+                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                  {tab.error && (
+                    <div style={{
+                      position: 'absolute', inset: 0, zIndex: 10,
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40,
+                      background: 'var(--bg-base)', animation: 'fadeIn 0.3s ease',
+                    }}>
+                      <div style={{ fontSize: 48, opacity: 0.3 }}>⚠</div>
+                      <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>Page couldn't load</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
+                        {tab.error.desc || 'The page failed to load.'}<br />
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                          {tab.error.code && `Error ${tab.error.code}`}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <button onClick={reload} style={{
+                          background: 'var(--amber)', border: 'none', borderRadius: 8, padding: '8px 20px',
+                          fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer',
+                          fontFamily: 'var(--font-ui)', transition: 'opacity 0.12s',
+                        }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                        >Try again</button>
+                        <button onClick={() => navigate('about:game', tab.id)} style={{
+                          background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 20px',
+                          fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer',
+                          fontFamily: 'var(--font-ui)', transition: 'all 0.12s',
+                        }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                        >Play Obsidian Racer</button>
+                      </div>
+                    </div>
+                  )}
+                  <webview
+                    ref={wv => {
+                      if (wv && !webviewRefs.current[tab.id]) {
+                        webviewRefs.current[tab.id] = wv;
+                        attachWebviewEvents(wv, tab.id);
+                      }
+                      if (!wv) delete webviewRefs.current[tab.id];
+                    }}
+                    src={tab.initialUrl}
+                    partition="persist:obsidian"
+                    preload={webviewPreload}
+                    plugins="true"
+                    style={{ width: '100%', height: '100%', border: 'none', display: tab.error ? 'none' : 'flex', background: '#fff' }}
+                    allowpopups="true"
+                    webpreferences="contextIsolation=yes"
+                  />
+                </div>
               )}
             </div>
           ))}

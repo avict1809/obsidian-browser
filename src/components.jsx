@@ -42,11 +42,11 @@ const QUICK_SITES = [
   { name: 'GitHub',    url: 'https://github.com',        color: '#f0f6ff' },
   { name: 'YouTube',   url: 'https://www.youtube.com',   color: '#ff0000' },
   { name: 'X / Twitter', url: 'https://x.com',          color: '#1d9bf0' },
+  { name: 'Ahmia',     url: 'https://ahmia.fi',          color: '#ffffff' },
   { name: 'Reddit',    url: 'https://www.reddit.com',    color: '#ff4500' },
   { name: 'ChatGPT',   url: 'https://chatgpt.com',       color: '#10a37f' },
   { name: 'Gmail',     url: 'https://mail.google.com',   color: '#ea4335' },
   { name: 'Wikipedia', url: 'https://en.wikipedia.org',  color: '#ffffff' },
-  { name: 'LinkedIn',  url: 'https://www.linkedin.com',  color: '#0a66c2' },
   { name: 'Claude',    url: 'https://claude.ai',         color: '#d97706' },
 ];
 
