@@ -37,6 +37,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   torStart: ()     => ipcRenderer.send('tor-start'),
   torStop: ()      => ipcRenderer.send('tor-stop'),
 
+  // Updates
+  updateCheck: ()   => ipcRenderer.send('update-check'),
+  updateInstall: () => ipcRenderer.send('update-install'),
+
   // Auth / PIN lock
   authHasPassword: ()      => ipcRenderer.invoke('auth-has-password'),
   authVerify:      (pin)   => ipcRenderer.invoke('auth-verify', pin),
@@ -52,6 +56,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'download-progress', 'download-done',
       'browser-shortcut', 'settings-updated',
       'tor-status', 'tor-log-entry',
+      'update-status',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => cb(...args));

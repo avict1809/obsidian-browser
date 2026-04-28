@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
 // ── Suppress internal Electron webview errors ──────────────────────────────
 // GUEST_VIEW_MANAGER_CALL and ERR_ABORTED (-3) errors are internal to Electron's
@@ -73,7 +74,6 @@ const DEFAULT_SETTINGS = {
   startHidden: false,
   winRShortcut: false,
   darkWebMode: false,
-  darkWebProxy: 'socks5://127.0.0.1:9050',
   proxy: {
     enabled: false,
     server: '',
@@ -205,6 +205,10 @@ function startTor() {
     console.log(`Tor process exited with code ${code}`);
     torProcess = null;
     torStatus = 'offline';
+    // Notify all windows
+    for (const win of windows) {
+      win.webContents.send('tor-status', { status: 'offline' });
+    }
   });
 }
 
@@ -219,9 +223,9 @@ async function applyProxyToSession() {
   const ses = session.fromPartition(PARTITION);
   
   if (settings.darkWebMode) {
-    // If local TOR is active, always use it. Otherwise fall back to the configured proxy (which might be remote).
-    const proxyUrl = (torStatus === 'ready') ? 'socks5://127.0.0.1:9050' : settings.darkWebProxy;
-    console.log('Applying TOR Proxy (Dark Web Mode):', proxyUrl);
+    // We now only use the embedded local TOR service for Dark Web mode
+    const proxyUrl = 'socks5://127.0.0.1:9050';
+    console.log('Applying Embedded TOR Proxy:', proxyUrl);
     await ses.setProxy({ proxyRules: proxyUrl });
   } else if (settings.proxy.enabled && settings.proxy.server) {
     console.log('Applying user proxy:', settings.proxy.server);
@@ -357,6 +361,36 @@ ipcMain.handle('settings-reset', () => {
 ipcMain.handle('tor-status-get', () => ({ status: torStatus, log: torLog }));
 ipcMain.on('tor-start', () => startTor());
 ipcMain.on('tor-stop', () => stopTor());
+
+// ── IPC: Updates ───────────────────────────────────────────────────────────
+ipcMain.on('update-check', () => {
+  console.log('Main: Manual update check requested');
+  autoUpdater.checkForUpdatesAndNotify();
+});
+ipcMain.on('update-install', () => {
+  console.log('Main: Quitting and installing update');
+  autoUpdater.quitAndInstall();
+});
+
+// ── AutoUpdater Events ─────────────────────────────────────────────────────
+autoUpdater.on('checking-for-update', () => {
+  mainWindow?.webContents.send('update-status', { state: 'checking' });
+});
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('update-status', { state: 'available', info });
+});
+autoUpdater.on('update-not-available', (info) => {
+  mainWindow?.webContents.send('update-status', { state: 'not-available', info });
+});
+autoUpdater.on('error', (err) => {
+  mainWindow?.webContents.send('update-status', { state: 'error', error: err.message });
+});
+autoUpdater.on('download-progress', (progress) => {
+  mainWindow?.webContents.send('update-status', { state: 'downloading', progress });
+});
+autoUpdater.on('update-downloaded', (info) => {
+  mainWindow?.webContents.send('update-status', { state: 'downloaded', info });
+});
 
 // ── IPC: Open external links in system browser ─────────────────────────────
 ipcMain.handle('proxy-test', async (_, proxyServer) => {
@@ -607,6 +641,9 @@ app.whenReady().then(() => {
   loadSettings();
   initSession();
   
+  // Check for updates on startup
+  autoUpdater.checkForUpdatesAndNotify();
+
   // Set default theme to light so that web content (prefers-color-scheme) 
   // doesn't automatically switch to dark mode. The browser shell remains dark.
   nativeTheme.themeSource = 'light';

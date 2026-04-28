@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [recording, setRecording] = useState(null); // { action, combo }
   const [torInfo, setTorInfo] = useState({ status: 'offline', log: [] });
+  const [updateStatus, setUpdateStatus] = useState({ state: 'idle' });
   const torLogRef = useRef(null);
 
   useEffect(() => {
@@ -20,6 +21,10 @@ export default function SettingsPage() {
 
     window.electronAPI?.on('tor-log-entry', line => {
       setTorInfo(prev => ({ ...prev, log: [...prev.log, line].slice(-100) }));
+    });
+
+    window.electronAPI?.on('update-status', status => {
+      setUpdateStatus(status);
     });
   }, []);
 
@@ -228,6 +233,69 @@ export default function SettingsPage() {
                     }}
                   />
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>Must include "%s" or end with a query parameter.</div>
+                </div>
+              </Section>
+
+              <Section title="Software Updates">
+                <div style={{ padding: '20px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>Obsidian Browser</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Version 1.0.0</div>
+                    </div>
+                    
+                    {updateStatus.state === 'idle' || updateStatus.state === 'not-available' || updateStatus.state === 'error' ? (
+                      <button 
+                        onClick={() => window.electronAPI?.updateCheck()}
+                        style={{
+                          background: 'var(--amber-dim)', border: '1px solid var(--amber)',
+                          borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'var(--amber)',
+                          cursor: 'pointer', fontWeight: 600
+                        }}
+                      >Check for Updates</button>
+                    ) : updateStatus.state === 'checking' ? (
+                      <div style={{ fontSize: 11, color: 'var(--amber)' }}>Checking...</div>
+                    ) : updateStatus.state === 'downloaded' ? (
+                      <button 
+                        onClick={() => window.electronAPI?.updateInstall()}
+                        style={{
+                          background: 'var(--amber)', border: 'none',
+                          borderRadius: 6, padding: '4px 12px', fontSize: 11, color: '#000',
+                          cursor: 'pointer', fontWeight: 700
+                        }}
+                      >Restart & Install</button>
+                    ) : null}
+                  </div>
+
+                  {updateStatus.state === 'downloading' && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Downloading update...</span>
+                        <span style={{ fontSize: 10, color: 'var(--amber)', fontFamily: 'var(--font-mono)' }}>{Math.round(updateStatus.progress?.percent || 0)}%</span>
+                      </div>
+                      <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', background: 'var(--amber)', width: `${updateStatus.progress?.percent || 0}%`, transition: 'width 0.2s' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {updateStatus.state === 'available' && (
+                    <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 8 }}>
+                      New version found! Downloading now...
+                    </div>
+                  )}
+
+                  {updateStatus.state === 'not-available' && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                      You are running the latest version.
+                    </div>
+                  )}
+
+                  {updateStatus.state === 'error' && (
+                    <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>
+                      Update error: {updateStatus.error}
+                    </div>
+                  )}
                 </div>
               </Section>
             </>
@@ -471,22 +539,22 @@ export default function SettingsPage() {
                     <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Activate TOR Mode</div>
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
                       {torInfo.status === 'ready' 
-                        ? (settings.darkWebProxy.includes('127.0.0.1') ? 'Connected to embedded TOR instance' : 'Connected to Remote Cloud Node')
+                        ? 'Connected to embedded TOR instance'
                         : `TOR Service: ${torInfo.status.toUpperCase()}`}
                     </div>
                   </div>
                   <button 
                     onClick={() => updateSettings({ darkWebMode: !settings.darkWebMode })}
-                    disabled={torInfo.status !== 'ready' && !settings.darkWebProxy.includes('127.0.0.1')}
+                    disabled={torInfo.status !== 'ready'}
                     style={{
                       padding: '10px 24px', borderRadius: 12, 
                       background: settings.darkWebMode ? '#a855f7' : 'rgba(255,255,255,0.05)',
                       border: 'none', color: settings.darkWebMode ? '#fff' : 'rgba(255,255,255,0.6)',
-                      fontSize: 14, fontWeight: 600, cursor: (torInfo.status !== 'ready' && !settings.darkWebProxy.includes('127.0.0.1')) ? 'not-allowed' : 'pointer', 
+                      fontSize: 14, fontWeight: 600, cursor: (torInfo.status !== 'ready') ? 'not-allowed' : 'pointer', 
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       boxShadow: settings.darkWebMode ? '0 0 20px rgba(168, 85, 247, 0.4)' : 'none',
                       transform: settings.darkWebMode ? 'scale(1.05)' : 'scale(1)',
-                      opacity: (torInfo.status !== 'ready' && !settings.darkWebProxy.includes('127.0.0.1')) ? 0.5 : 1
+                      opacity: (torInfo.status !== 'ready') ? 0.5 : 1
                     }}
                   >
                     {torInfo.status === 'bootstrapping' ? 'STARTING...' : (settings.darkWebMode ? 'ACTIVE' : 'ACTIVATE')}
@@ -544,68 +612,17 @@ export default function SettingsPage() {
                 </div>
               </Section>
 
-              <Section title="Onion Node Configuration">
-                <div style={{ padding: '20px', background: 'var(--bg-surface)', borderRadius: 16, border: '1px solid var(--border)' }}>
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, marginBottom: 8 }}>TOR Proxy Address</div>
-                    <input 
-                      value={settings.darkWebProxy}
-                      onChange={e => updateSettings({ darkWebProxy: e.target.value })}
-                      placeholder="socks5://127.0.0.1:9050"
-                      style={{
-                        width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)',
-                        borderRadius: 10, padding: '12px 16px', color: '#a855f7',
-                        fontSize: 13, outline: 'none', fontFamily: 'var(--font-mono)',
-                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
-                      }}
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-                      Use <code style={{ color: '#a855f7' }}>socks5://127.0.0.1:9050</code> for local TOR, or a public SOCKS5 node for cloud access.
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Cloud TOR Nodes (Public)</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[
-                      { name: 'Onion Cloud (US)', addr: 'socks5://tor-us.onioncloud.io:1080', latency: '120ms' },
-                      { name: 'Shadow Bridge (DE)', addr: 'socks5://bridge-de.shadow-net.org:9050', latency: '85ms' },
-                      { name: 'Neon Proxy (SG)', addr: 'socks5://sg-proxy.neon-tor.com:443', latency: '210ms' },
-                      { name: 'Local Instance', addr: 'socks5://127.0.0.1:9050', latency: '0ms' },
-                    ].map(node => (
-                      <div 
-                        key={node.addr}
-                        onClick={() => updateSettings({ darkWebProxy: node.addr })}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '10px 14px', background: settings.darkWebProxy === node.addr ? 'rgba(168, 85, 247, 0.1)' : 'rgba(255,255,255,0.02)',
-                          border: '1px solid', borderColor: settings.darkWebProxy === node.addr ? '#a855f7' : 'var(--border)',
-                          borderRadius: 10, cursor: 'pointer', transition: 'all 0.12s'
-                        }}
-                        onMouseEnter={e => settings.darkWebProxy !== node.addr && (e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.4)')}
-                        onMouseLeave={e => settings.darkWebProxy !== node.addr && (e.currentTarget.style.borderColor = 'var(--border)')}
-                      >
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: settings.darkWebProxy === node.addr ? '#a855f7' : 'var(--text-primary)' }}>{node.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{node.addr}</div>
-                        </div>
-                        <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>{node.latency}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Section>
-
               <Section title="Connection Details">
                 <div style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Status</span>
                     <span style={{ fontSize: 12, color: settings.darkWebMode ? '#a855f7' : 'var(--text-muted)', fontWeight: 600 }}>
-                      {settings.darkWebMode ? 'Routing through ' + (settings.darkWebProxy.includes('127.0.0.1') ? 'Local Onion' : 'Cloud Node') : 'Disconnected'}
+                      {settings.darkWebMode ? 'Routing through Local Onion' : 'Disconnected'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Proxy Address</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{settings.darkWebProxy}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>127.0.0.1:9050</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Encryption</span>
