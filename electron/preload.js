@@ -32,6 +32,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   settingsReset: ()      => ipcRenderer.invoke('settings-reset'),
   proxyTest: (server)    => ipcRenderer.invoke('proxy-test', server),
 
+  // TOR
+  torStatusGet: () => ipcRenderer.invoke('tor-status-get'),
+  torStart: ()     => ipcRenderer.send('tor-start'),
+  torStop: ()      => ipcRenderer.send('tor-stop'),
+
   // Auth / PIN lock
   authHasPassword: ()      => ipcRenderer.invoke('auth-has-password'),
   authVerify:      (pin)   => ipcRenderer.invoke('auth-verify', pin),
@@ -46,6 +51,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'open-new-tab',
       'download-progress', 'download-done',
       'browser-shortcut', 'settings-updated',
+      'tor-status', 'tor-log-entry',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => cb(...args));

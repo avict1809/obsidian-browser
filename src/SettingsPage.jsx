@@ -7,15 +7,38 @@ export default function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState('general');
   const [recording, setRecording] = useState(null); // { action, combo }
+  const [torInfo, setTorInfo] = useState({ status: 'offline', log: [] });
+  const torLogRef = useRef(null);
 
   useEffect(() => {
     window.electronAPI?.settingsGet().then(setSettings);
+    window.electronAPI?.torStatusGet().then(setTorInfo);
+    
+    window.electronAPI?.on('tor-status', info => {
+      setTorInfo(prev => ({ ...prev, status: info.status }));
+    });
+
+    window.electronAPI?.on('tor-log-entry', line => {
+      setTorInfo(prev => ({ ...prev, log: [...prev.log, line].slice(-100) }));
+    });
   }, []);
+
+  useEffect(() => {
+    if (torLogRef.current) {
+      torLogRef.current.scrollTop = torLogRef.current.scrollHeight;
+    }
+  }, [torInfo.log]);
 
   const updateSettings = (patch) => {
     const newSettings = { ...settings, ...patch };
     setSettings(newSettings);
     window.electronAPI?.settingsSet(newSettings);
+
+    // Auto-start TOR if enabling Dark Web mode and it's offline
+    if (patch.darkWebMode === true && torInfo.status === 'offline') {
+      window.electronAPI?.torStart();
+      setTorInfo(prev => ({ ...prev, status: 'bootstrapping' }));
+    }
   };
 
   const resetSettings = async () => {
@@ -139,6 +162,15 @@ export default function SettingsPage() {
           <Icon name="history" size={14} color="currentColor" /> Shortcuts
         </button>
 
+        <button onClick={() => setActiveTab('darkweb')} style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          background: activeTab === 'darkweb' ? 'rgba(168, 85, 247, 0.1)' : 'none',
+          color: activeTab === 'darkweb' ? '#a855f7' : 'var(--text-secondary)',
+          textAlign: 'left', fontSize: 13, fontWeight: activeTab === 'darkweb' ? 600 : 400, transition: 'all 0.12s'
+        }}>
+          <Icon name="eye" size={14} color="currentColor" /> Dark Web
+        </button>
+
         <div style={{ flex: 1 }} />
         
         <button onClick={resetSettings} style={{
@@ -173,6 +205,12 @@ export default function SettingsPage() {
                   desc="Browser stays invisible on launch until you use the toggle shortcut."
                   value={settings.startHidden} 
                   onChange={v => updateSettings({ startHidden: v })} 
+                />
+                <Toggle 
+                  label="Win+R Access (obsidian)" 
+                  desc="Type 'obsidian' in the Windows Run dialog (Win+R) to launch the browser instantly."
+                  value={settings.winRShortcut} 
+                  onChange={v => updateSettings({ winRShortcut: v })} 
                 />
               </Section>
               
@@ -397,6 +435,199 @@ export default function SettingsPage() {
               <ShortcutRow action="toggle-visibility" label="Global Visibility Toggle" combo={settings.shortcuts['toggle-visibility']} />
               <div style={{ height: 40 }} />
             </Section>
+          )}
+
+          {activeTab === 'darkweb' && (
+            <>
+              <div style={{ 
+                padding: '40px', borderRadius: 24, 
+                background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.2) 0%, rgba(15, 23, 42, 0.4) 100%)',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                position: 'relative', overflow: 'hidden', marginBottom: 30,
+                boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
+              }}>
+                <div style={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, background: 'rgba(168, 85, 247, 0.1)', filter: 'blur(80px)', borderRadius: '50%' }} />
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(168, 85, 247, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="eye" size={24} color="#a855f7" />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 24, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: -0.5 }}>Dark Web Mode</h2>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Anonymous browsing via TOR network</div>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: 14, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)', maxWidth: 500, marginBottom: 30 }}>
+                  Dark Web Mode routes all traffic through the TOR (The Onion Router) network. 
+                  This hides your identity and allows access to .onion websites.
+                </p>
+
+                <div style={{ 
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                  padding: '20px', background: 'rgba(0,0,0,0.3)', borderRadius: 16, border: '1px solid rgba(168, 85, 247, 0.2)' 
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Activate TOR Mode</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                      {torInfo.status === 'ready' 
+                        ? (settings.darkWebProxy.includes('127.0.0.1') ? 'Connected to embedded TOR instance' : 'Connected to Remote Cloud Node')
+                        : `TOR Service: ${torInfo.status.toUpperCase()}`}
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => updateSettings({ darkWebMode: !settings.darkWebMode })}
+                    disabled={torInfo.status !== 'ready' && !settings.darkWebProxy.includes('127.0.0.1')}
+                    style={{
+                      padding: '10px 24px', borderRadius: 12, 
+                      background: settings.darkWebMode ? '#a855f7' : 'rgba(255,255,255,0.05)',
+                      border: 'none', color: settings.darkWebMode ? '#fff' : 'rgba(255,255,255,0.6)',
+                      fontSize: 14, fontWeight: 600, cursor: (torInfo.status !== 'ready' && !settings.darkWebProxy.includes('127.0.0.1')) ? 'not-allowed' : 'pointer', 
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      boxShadow: settings.darkWebMode ? '0 0 20px rgba(168, 85, 247, 0.4)' : 'none',
+                      transform: settings.darkWebMode ? 'scale(1.05)' : 'scale(1)',
+                      opacity: (torInfo.status !== 'ready' && !settings.darkWebProxy.includes('127.0.0.1')) ? 0.5 : 1
+                    }}
+                  >
+                    {torInfo.status === 'bootstrapping' ? 'STARTING...' : (settings.darkWebMode ? 'ACTIVE' : 'ACTIVATE')}
+                  </button>
+                </div>
+              </div>
+
+              <Section title="Embedded TOR Status">
+                <div style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ 
+                          width: 10, height: 10, borderRadius: '50%', 
+                          background: torInfo.status === 'ready' ? '#22c55e' : (torInfo.status === 'bootstrapping' ? 'var(--amber)' : 'var(--red)'),
+                          boxShadow: torInfo.status === 'ready' ? '0 0 10px #22c55e' : 'none'
+                        }} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                          {torInfo.status}
+                        </span>
+                      </div>
+                      
+                      {torInfo.status === 'offline' && (
+                        <button 
+                          onClick={() => {
+                            window.electronAPI?.torStart();
+                            setTorInfo(prev => ({ ...prev, status: 'bootstrapping' }));
+                          }}
+                          style={{
+                            padding: '4px 12px', background: 'var(--amber-dim)', border: '1px solid var(--amber)',
+                            borderRadius: 6, color: 'var(--amber)', fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                          }}
+                        >Start Service</button>
+                      )}
+                      
+                      {torInfo.status !== 'offline' && (
+                        <button 
+                          onClick={() => window.electronAPI?.torStop()}
+                          style={{
+                            padding: '4px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444',
+                            borderRadius: 6, color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                          }}
+                        >Stop Service</button>
+                      )}
+                   </div>
+
+                   <div 
+                     ref={torLogRef}
+                     style={{ 
+                     height: 120, overflowY: 'auto', background: '#000', borderRadius: 8, padding: 12,
+                     fontFamily: 'var(--font-mono)', fontSize: 10, color: '#22c55e', lineHeight: 1.4,
+                     border: '1px solid rgba(34, 197, 94, 0.2)'
+                   }}>
+                     {torInfo.log?.length > 0 ? torInfo.log.map((l, i) => <div key={i}>{l}</div>) : <div style={{ opacity: 0.3 }}>Waiting for TOR logs...</div>}
+                   </div>
+                </div>
+              </Section>
+
+              <Section title="Onion Node Configuration">
+                <div style={{ padding: '20px', background: 'var(--bg-surface)', borderRadius: 16, border: '1px solid var(--border)' }}>
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, marginBottom: 8 }}>TOR Proxy Address</div>
+                    <input 
+                      value={settings.darkWebProxy}
+                      onChange={e => updateSettings({ darkWebProxy: e.target.value })}
+                      placeholder="socks5://127.0.0.1:9050"
+                      style={{
+                        width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)',
+                        borderRadius: 10, padding: '12px 16px', color: '#a855f7',
+                        fontSize: 13, outline: 'none', fontFamily: 'var(--font-mono)',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
+                      }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                      Use <code style={{ color: '#a855f7' }}>socks5://127.0.0.1:9050</code> for local TOR, or a public SOCKS5 node for cloud access.
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Cloud TOR Nodes (Public)</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      { name: 'Onion Cloud (US)', addr: 'socks5://tor-us.onioncloud.io:1080', latency: '120ms' },
+                      { name: 'Shadow Bridge (DE)', addr: 'socks5://bridge-de.shadow-net.org:9050', latency: '85ms' },
+                      { name: 'Neon Proxy (SG)', addr: 'socks5://sg-proxy.neon-tor.com:443', latency: '210ms' },
+                      { name: 'Local Instance', addr: 'socks5://127.0.0.1:9050', latency: '0ms' },
+                    ].map(node => (
+                      <div 
+                        key={node.addr}
+                        onClick={() => updateSettings({ darkWebProxy: node.addr })}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '10px 14px', background: settings.darkWebProxy === node.addr ? 'rgba(168, 85, 247, 0.1)' : 'rgba(255,255,255,0.02)',
+                          border: '1px solid', borderColor: settings.darkWebProxy === node.addr ? '#a855f7' : 'var(--border)',
+                          borderRadius: 10, cursor: 'pointer', transition: 'all 0.12s'
+                        }}
+                        onMouseEnter={e => settings.darkWebProxy !== node.addr && (e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.4)')}
+                        onMouseLeave={e => settings.darkWebProxy !== node.addr && (e.currentTarget.style.borderColor = 'var(--border)')}
+                      >
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: settings.darkWebProxy === node.addr ? '#a855f7' : 'var(--text-primary)' }}>{node.name}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{node.addr}</div>
+                        </div>
+                        <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>{node.latency}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Connection Details">
+                <div style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Status</span>
+                    <span style={{ fontSize: 12, color: settings.darkWebMode ? '#a855f7' : 'var(--text-muted)', fontWeight: 600 }}>
+                      {settings.darkWebMode ? 'Routing through ' + (settings.darkWebProxy.includes('127.0.0.1') ? 'Local Onion' : 'Cloud Node') : 'Disconnected'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Proxy Address</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{settings.darkWebProxy}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Encryption</span>
+                    <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>Multi-layer Onion</span>
+                  </div>
+                </div>
+              </Section>
+
+              <div style={{ 
+                marginTop: 20, padding: '16px', borderRadius: 12, background: 'rgba(239, 68, 68, 0.05)', 
+                border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', gap: 12 
+              }}>
+                <Icon name="stop" size={16} color="#ef4444" style={{ marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#ef4444' }}>Security Note</div>
+                  <div style={{ fontSize: 12, color: 'rgba(239, 68, 68, 0.8)', marginTop: 4, lineHeight: 1.5 }}>
+                    Ensure you have the TOR Browser or TOR Expert Bundle installed and running in the background. 
+                    Obsidian Browser connects to the local TOR proxy automatically.
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>

@@ -1243,6 +1243,15 @@ export default function App() {
               Secure
             </span>
           )}
+          {settings?.darkWebMode && (
+            <span style={{ 
+              fontSize: 9, color: '#a855f7', letterSpacing: 1, textTransform: 'uppercase', 
+              fontFamily: 'var(--font-mono)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4
+            }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', animation: 'pulsePurple 2s infinite' }} />
+              Onion Active
+            </span>
+          )}
           <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
             {tabs.length} tab{tabs.length !== 1 ? 's' : ''}
           </span>

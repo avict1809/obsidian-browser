@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, session, Menu, shell, dialog, webContents, 
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 // ── Suppress internal Electron webview errors ──────────────────────────────
 // GUEST_VIEW_MANAGER_CALL and ERR_ABORTED (-3) errors are internal to Electron's
@@ -40,6 +41,9 @@ console.log('Is dev mode:', isDev);
 console.log('NODE_ENV:', process.env.NODE_ENV);
 
 let mainWindow = null;
+let torProcess = null;
+let torStatus = 'offline'; // 'offline', 'bootstrapping', 'ready'
+let torLog = [];
 
 // ── Settings Persistence ──────────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -67,6 +71,9 @@ const DEFAULT_SETTINGS = {
     'new-window':       { key: 'n', ctrl: true,  shift: false, alt: false },
   },
   startHidden: false,
+  winRShortcut: false,
+  darkWebMode: false,
+  darkWebProxy: 'socks5://127.0.0.1:9050',
   proxy: {
     enabled: false,
     server: '',
@@ -107,15 +114,117 @@ function saveSettings() {
     registerGlobalShortcuts();
     // Update proxy for the shared session
     applyProxyToSession();
+    // Update Win+R shortcut
+    if (process.platform === 'win32') {
+      registerAppPath(settings.winRShortcut);
+    }
   } catch (err) {
     console.error('Failed to save settings:', err);
   }
 }
 
+function registerAppPath(enable) {
+  if (process.platform !== 'win32') return;
+  const { exec } = require('child_process');
+  const exePath = app.getPath('exe');
+  const exeDir = path.dirname(exePath);
+  const regKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\obsidian.exe';
+
+  if (enable) {
+    const cmd1 = `reg add "${regKey}" /ve /t REG_SZ /d "${exePath}" /f`;
+    const cmd2 = `reg add "${regKey}" /v Path /t REG_SZ /d "${exeDir}" /f`;
+    exec(cmd1, (err) => {
+      if (err) console.error('Failed to register Win+R shortcut (1):', err);
+    });
+    exec(cmd2, (err) => {
+      if (err) console.error('Failed to register Win+R shortcut (2):', err);
+    });
+  } else {
+    const cmd = `reg delete "${regKey}" /f`;
+    exec(cmd, (err) => {
+      // Ignore error if key doesn't exist
+    });
+  }
+}
+
+function startTor() {
+  if (torProcess) return;
+  
+  const isDev = process.env.NODE_ENV === 'development';
+  // In dev, we look in the root resources folder. In production, Electron puts extraResources in process.resourcesPath.
+  const torDir = isDev 
+    ? path.join(__dirname, '..', 'resources', 'tor')
+    : path.join(process.resourcesPath, 'resources', 'tor');
+  
+  const torBinary = process.platform === 'win32' ? 'tor.exe' : 'tor';
+  const torPath = path.join(torDir, torBinary);
+
+  console.log('Starting TOR from:', torPath);
+  
+  if (!fs.existsSync(torPath)) {
+    console.error('TOR binary not found at:', torPath);
+    torStatus = 'error';
+    return;
+  }
+
+  torStatus = 'bootstrapping';
+  
+  // Start TOR with custom ports to avoid conflicts with system TOR
+  torProcess = spawn(torPath, [
+    '--SocksPort', '9050',
+    '--ControlPort', '9051',
+    '--DataDirectory', path.join(app.getPath('userData'), 'tor-data')
+  ]);
+
+  torProcess.stdout.on('data', (data) => {
+    const line = data.toString().trim();
+    console.log('Tor:', line);
+    torLog.push(line);
+    if (torLog.length > 100) torLog.shift();
+
+    // Send new log entry to all windows
+    for (const win of windows) {
+      win.webContents.send('tor-log-entry', line);
+    }
+
+    if (line.includes('Bootstrapped 100%')) {
+      console.log('TOR is ready!');
+      torStatus = 'ready';
+      // Notify all windows
+      for (const win of windows) {
+        win.webContents.send('tor-status', { status: 'ready' });
+      }
+    }
+  });
+
+  torProcess.stderr.on('data', (data) => {
+    console.error('Tor Error:', data.toString());
+  });
+
+  torProcess.on('close', (code) => {
+    console.log(`Tor process exited with code ${code}`);
+    torProcess = null;
+    torStatus = 'offline';
+  });
+}
+
+function stopTor() {
+  if (torProcess) {
+    torProcess.kill();
+    torProcess = null;
+  }
+}
+
 async function applyProxyToSession() {
   const ses = session.fromPartition(PARTITION);
-  if (settings.proxy.enabled && settings.proxy.server) {
-    console.log('Applying proxy:', settings.proxy.server);
+  
+  if (settings.darkWebMode) {
+    // If local TOR is active, always use it. Otherwise fall back to the configured proxy (which might be remote).
+    const proxyUrl = (torStatus === 'ready') ? 'socks5://127.0.0.1:9050' : settings.darkWebProxy;
+    console.log('Applying TOR Proxy (Dark Web Mode):', proxyUrl);
+    await ses.setProxy({ proxyRules: proxyUrl });
+  } else if (settings.proxy.enabled && settings.proxy.server) {
+    console.log('Applying user proxy:', settings.proxy.server);
     await ses.setProxy({ proxyRules: settings.proxy.server });
   } else {
     console.log('Disabling proxy (direct connection)');
@@ -244,6 +353,10 @@ ipcMain.handle('settings-reset', () => {
   saveSettings();
   return settings;
 });
+
+ipcMain.handle('tor-status-get', () => ({ status: torStatus, log: torLog }));
+ipcMain.on('tor-start', () => startTor());
+ipcMain.on('tor-stop', () => stopTor());
 
 // ── IPC: Open external links in system browser ─────────────────────────────
 ipcMain.handle('proxy-test', async (_, proxyServer) => {
@@ -493,7 +606,7 @@ ipcMain.handle('auth-set-password', (_, pin) => {
 app.whenReady().then(() => {
   loadSettings();
   initSession();
-
+  
   // Set default theme to light so that web content (prefers-color-scheme) 
   // doesn't automatically switch to dark mode. The browser shell remains dark.
   nativeTheme.themeSource = 'light';
@@ -621,6 +734,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  stopTor();
 });
 
 
