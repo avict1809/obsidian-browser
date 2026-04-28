@@ -1,0 +1,2 @@
+
+$env:GH_TOKEN="token_here"; npm run publish:win
