@@ -53,3 +53,15 @@ html, body, #root {
   100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); opacity: 0.8; }
 }
 
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-4px, 2px) skewX(2deg); filter: contrast(1.5) hue-rotate(90deg); }
+  40% { transform: translate(4px, -2px) skewX(-2deg); filter: contrast(1.2) hue-rotate(180deg); }
+  60% { transform: translate(-2px, 2px) skewY(1deg); filter: contrast(1.8) hue-rotate(270deg); }
+  80% { transform: translate(2px, -2px) skewY(-1deg); filter: contrast(1.1) hue-rotate(360deg); }
+  100% { transform: translate(0); }
+}
+
+.tab-glitch {
+  animation: glitch 0.2s cubic-bezier(.25,.46,.45,.94) both;
+}

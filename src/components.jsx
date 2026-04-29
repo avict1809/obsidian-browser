@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
 
 // ─── URL Utilities ────────────────────────────────────────────────────────────
 
-function normalizeUrl(input) {
+function normalizeUrl(input, searchUrl = 'https://www.google.com/search?q=') {
   const s = input.trim();
   if (!s) return 'about:blank';
   // Already has protocol
@@ -12,7 +12,11 @@ function normalizeUrl(input) {
     return 'https://' + s;
   }
   // Treat as search query
-  return `https://www.google.com/search?q=${encodeURIComponent(s)}`;
+  if (searchUrl.includes('%s')) {
+    return searchUrl.replace('%s', encodeURIComponent(s));
+  }
+  // Ensure we don't double up on query params if the user didn't include them but the URL usually needs them
+  return searchUrl + encodeURIComponent(s);
 }
 
 function displayUrl(url) {
@@ -230,7 +234,7 @@ function UrlBar({ url, loading, onNavigate, onStop, onReload, settings }) {
 
   const commit = () => {
     setEditing(false);
-    if (value.trim()) onNavigate(normalizeUrl(value));
+    if (value.trim()) onNavigate(normalizeUrl(value, settings?.defaultSearchEngine));
   };
 
   return (

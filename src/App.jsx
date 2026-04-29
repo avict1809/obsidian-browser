@@ -428,8 +428,18 @@ function ZoomOverlay({ url, onClose }) {
 
 export default function App() {
   const [locked, setLocked]           = useState(true);   // starts locked until auth check
+  const [glitch, setGlitch]           = useState(false);
   const [tabs, setTabs]               = useState([createTab('about:newtab')]);
   const [activeId, setActiveId]       = useState(tabs[0].id);
+
+  // Tab glitch effect
+  useEffect(() => {
+    if (activeId) {
+      setGlitch(true);
+      const t = setTimeout(() => setGlitch(false), 200);
+      return () => clearTimeout(t);
+    }
+  }, [activeId]);
   const [showHistory, setShowHistory] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
   const [downloads, setDownloads]     = useState([]);
@@ -1146,7 +1156,7 @@ export default function App() {
       </div>
 
       {/* ── Content area (browser + optional right panel) ── */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
+      <div className={glitch ? 'tab-glitch' : ''} style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
 
         {/* Webview area */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -1217,6 +1227,18 @@ export default function App() {
                     webpreferences="contextIsolation=yes"
                   />
                 </div>
+              )}
+
+              {/* HUD nested inside the active tab container */}
+              {tab.id === activeId && (
+                <HUDOverlay 
+                  active={hudActive} 
+                  settings={settings}
+                  tabCount={tabs.length}
+                  torStatus={torStatus}
+                  opacity={settings?.coolFeatures?.hudOpacity ?? 0.8}
+                  activeUrl={tab.url}
+                />
               )}
             </div>
           ))}
@@ -1594,14 +1616,6 @@ export default function App() {
           tabs={tabs}
           currentTabId={activeId}
         />
-
-        <HUDOverlay 
-          active={hudActive} 
-          settings={settings}
-          tabCount={tabs.length}
-          torStatus={torStatus}
-        />
-
       </div>
     </div>
   );

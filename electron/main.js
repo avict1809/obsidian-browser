@@ -85,10 +85,12 @@ const DEFAULT_SETTINGS = {
     glitchTransitions: false,
     privacyPulse: false,
     holographicHUD: false,
+    hudOpacity: 0.8,
   },
   startHidden: false,
   winRShortcut: false,
   darkWebMode: false,
+  screenCaptureProtection: true,
   proxy: {
     enabled: false,
     server: '',
@@ -110,7 +112,10 @@ function loadSettings() {
       const data = JSON.parse(fs.readFileSync(p, 'utf8'));
       settings = { ...DEFAULT_SETTINGS, ...data, 
         shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...data.shortcuts },
-        proxy: { ...DEFAULT_SETTINGS.proxy, ...data.proxy }
+        proxy: { ...DEFAULT_SETTINGS.proxy, ...data.proxy },
+        coolFeatures: { ...DEFAULT_SETTINGS.coolFeatures, ...data.coolFeatures },
+        // Always force screen capture protection to true on launch
+        screenCaptureProtection: true
       };
     }
   } catch (err) {
@@ -124,6 +129,7 @@ function saveSettings() {
     // Notify all renderers
     for (const win of windows) {
       win.webContents.send('settings-updated', settings);
+      if (!win.isDestroyed()) win.setContentProtection(settings.screenCaptureProtection);
     }
     // Update global shortcuts
     registerGlobalShortcuts();
@@ -303,7 +309,7 @@ function createWindow() {
 
 
   windows.add(win);
-  win.setContentProtection(true);
+  win.setContentProtection(settings.screenCaptureProtection);
 
   if (!mainWindow) mainWindow = win;
 
@@ -363,9 +369,13 @@ ipcMain.handle('settings-set', (_, newSettings) => {
     if (settings.skipTaskbar !== oldSkipTaskbar) {
       win.setSkipTaskbar(settings.skipTaskbar);
     }
+    if (!win.isDestroyed()) win.setContentProtection(settings.screenCaptureProtection);
   }
   
   saveSettings();
+  for (const w of windows) {
+    w.webContents.send('settings-updated', settings);
+  }
   return settings;
 });
 ipcMain.handle('settings-reset', () => {

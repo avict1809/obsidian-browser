@@ -34,7 +34,7 @@ export default function NewTabPage({ onNavigate, settings }) {
   }, []);
 
   const submit = () => {
-    if (query.trim()) onNavigate(normalizeUrl(query));
+    if (query.trim()) onNavigate(normalizeUrl(query, settings?.defaultSearchEngine));
   };
 
   return (

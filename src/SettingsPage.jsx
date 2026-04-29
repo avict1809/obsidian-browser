@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Icon, TBtn } from './components.jsx';
+import { Icon, Toggle, Section, TBtn } from './components.jsx';
+
+const SEARCH_ENGINES = [
+  { name: 'Google', url: 'https://www.google.com/search?q=' },
+  { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
+  { name: 'Bing', url: 'https://www.bing.com/search?q=' },
+  { name: 'Brave', url: 'https://search.brave.com/search?q=' },
+  { name: 'StartPage', url: 'https://www.startpage.com/sp/search?query=' }
+];
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState(null);
@@ -14,7 +22,7 @@ export default function SettingsPage() {
   useEffect(() => {
     window.electronAPI?.settingsGet().then(setSettings);
     window.electronAPI?.torStatusGet().then(setTorInfo);
-    
+
     window.electronAPI?.on('tor-status', info => {
       setTorInfo(prev => ({ ...prev, status: info.status }));
     });
@@ -62,7 +70,7 @@ export default function SettingsPage() {
     const handler = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
+
       const key = e.key.toLowerCase();
       if (['control', 'shift', 'alt', 'meta'].includes(key)) return;
 
@@ -96,7 +104,7 @@ export default function SettingsPage() {
         <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{label}</div>
         {desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>}
       </div>
-      <button 
+      <button
         onClick={() => onChange(!value)}
         style={{
           width: 40, height: 20, borderRadius: 10, background: value ? 'var(--amber)' : 'rgba(255,255,255,0.1)',
@@ -114,11 +122,11 @@ export default function SettingsPage() {
   const ShortcutRow = ({ action, label, combo }) => {
     const isRecording = recording?.action === action;
     const comboStr = isRecording ? 'Recording...' : `${combo.ctrl ? 'Ctrl+' : ''}${combo.shift ? 'Shift+' : ''}${combo.alt ? 'Alt+' : ''}${combo.key.toUpperCase()}`;
-    
+
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
         <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{label}</div>
-        <button 
+        <button
           onClick={() => handleRecord(action)}
           style={{
             background: isRecording ? 'var(--amber-dim)' : 'rgba(255,255,255,0.05)',
@@ -139,7 +147,7 @@ export default function SettingsPage() {
       {/* Sidebar */}
       <div style={{ width: 240, borderRight: '1px solid var(--border)', padding: '40px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 30, paddingLeft: 12 }}>Settings</div>
-        
+
         <button onClick={() => setActiveTab('general')} style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
           background: activeTab === 'general' ? 'var(--amber-dim)' : 'none',
@@ -157,7 +165,7 @@ export default function SettingsPage() {
         }}>
           <Icon name="lock" size={14} color="currentColor" /> Proxy / VPN
         </button>
-        
+
         <button onClick={() => setActiveTab('shortcuts')} style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
           background: activeTab === 'shortcuts' ? 'var(--amber-dim)' : 'none',
@@ -186,7 +194,7 @@ export default function SettingsPage() {
         </button>
 
         <div style={{ flex: 1 }} />
-        
+
         <button onClick={resetSettings} style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
           background: 'none', color: 'var(--red)', opacity: 0.7,
@@ -202,36 +210,61 @@ export default function SettingsPage() {
           {activeTab === 'general' && (
             <>
               <Section title="Window Behavior">
-                <Toggle 
-                  label="Always on Top" 
+                <Toggle
+                  label="Always on Top"
                   desc="Keep the browser visible above all other applications."
-                  value={settings.alwaysOnTop} 
-                  onChange={v => updateSettings({ alwaysOnTop: v })} 
+                  value={settings.alwaysOnTop}
+                  onChange={v => updateSettings({ alwaysOnTop: v })}
                 />
-                <Toggle 
-                  label="Hide from Taskbar" 
+                <Toggle
+                  label="Hide from Taskbar"
                   desc="Remove the app from the system taskbar and Alt+Tab menu."
-                  value={settings.skipTaskbar} 
-                  onChange={v => updateSettings({ skipTaskbar: v })} 
+                  value={settings.skipTaskbar}
+                  onChange={v => updateSettings({ skipTaskbar: v })}
                 />
-                <Toggle 
-                  label="Start Hidden" 
+                <Toggle
+                  label="Start Hidden"
                   desc="Browser stays invisible on launch until you use the toggle shortcut."
-                  value={settings.startHidden} 
-                  onChange={v => updateSettings({ startHidden: v })} 
+                  value={settings.startHidden}
+                  onChange={v => updateSettings({ startHidden: v })}
                 />
-                <Toggle 
-                  label="Win+R Access (obsidian)" 
+                <Toggle
+                  label="Win+R Access (obsidian)"
                   desc="Type 'obsidian' in the Windows Run dialog (Win+R) to launch the browser instantly."
-                  value={settings.winRShortcut} 
-                  onChange={v => updateSettings({ winRShortcut: v })} 
+                  value={settings.winRShortcut}
+                  onChange={v => updateSettings({ winRShortcut: v })}
+                />
+                <Toggle
+                  label="Screen Capture Protection"
+                  desc="Hide browser content from screenshots and screen recordings. (Resets to ON each launch)"
+                  value={settings.screenCaptureProtection}
+                  onChange={v => updateSettings({ screenCaptureProtection: v })}
                 />
               </Section>
-              
+
               <Section title="Search">
                 <div style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
-                  <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, marginBottom: 8 }}>Default Search Engine</div>
-                  <input 
+                  <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, marginBottom: 12 }}>Default Search Engine</div>
+
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                    {SEARCH_ENGINES.map(se => (
+                      <button
+                        key={se.url}
+                        onClick={() => updateSettings({ defaultSearchEngine: se.url })}
+                        style={{
+                          padding: '6px 12px', borderRadius: 6, border: '1px solid',
+                          borderColor: settings.defaultSearchEngine === se.url ? 'var(--amber)' : 'var(--border)',
+                          background: settings.defaultSearchEngine === se.url ? 'var(--amber-dim)' : 'rgba(255,255,255,0.02)',
+                          color: settings.defaultSearchEngine === se.url ? 'var(--amber)' : 'var(--text-secondary)',
+                          fontSize: 11, cursor: 'pointer', transition: 'all 0.12s'
+                        }}
+                      >
+                        {se.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
                     value={settings.defaultSearchEngine}
                     onChange={e => updateSettings({ defaultSearchEngine: e.target.value })}
                     placeholder="https://www.google.com/search?q="
@@ -241,7 +274,7 @@ export default function SettingsPage() {
                       fontSize: 12, outline: 'none', fontFamily: 'var(--font-mono)'
                     }}
                   />
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>Must include "%s" or end with a query parameter.</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>Custom URL (must end with query parameter or include %s)</div>
                 </div>
               </Section>
 
@@ -250,11 +283,11 @@ export default function SettingsPage() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
                       <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>Obsidian Browser</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Version 1.0.4</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Version 1.0.5</div>
                     </div>
-                    
+
                     {updateStatus.state === 'idle' || updateStatus.state === 'not-available' || updateStatus.state === 'error' ? (
-                      <button 
+                      <button
                         onClick={() => window.electronAPI?.updateCheck()}
                         style={{
                           background: 'var(--amber-dim)', border: '1px solid var(--amber)',
@@ -265,7 +298,7 @@ export default function SettingsPage() {
                     ) : updateStatus.state === 'checking' ? (
                       <div style={{ fontSize: 11, color: 'var(--amber)' }}>Checking...</div>
                     ) : updateStatus.state === 'downloaded' ? (
-                      <button 
+                      <button
                         onClick={() => window.electronAPI?.updateInstall()}
                         style={{
                           background: 'var(--amber)', border: 'none',
@@ -313,32 +346,32 @@ export default function SettingsPage() {
           {activeTab === 'proxy' && (
             <>
               <Section title="VPN / Proxy Settings">
-                <Toggle 
-                  label="Enable Proxy" 
+                <Toggle
+                  label="Enable Proxy"
                   desc="Route all browsing traffic through a proxy server."
-                  value={settings.proxy.enabled} 
-                  onChange={v => updateSettings({ proxy: { ...settings.proxy, enabled: v } })} 
+                  value={settings.proxy.enabled}
+                  onChange={v => updateSettings({ proxy: { ...settings.proxy, enabled: v } })}
                 />
 
                 <div style={{ padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border)', marginTop: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>Proxy Server Address</div>
-                    <button 
+                    <button
                       ref={proxyTestBtnRef}
                       onClick={async () => {
                         if (!settings.proxy.server) return;
                         const btn = proxyTestBtnRef.current;
                         const originalText = btn.innerText;
                         const originalColor = btn.style.color;
-                        
+
                         try {
                           btn.innerText = 'Testing...';
                           btn.disabled = true;
                           console.log('Starting proxy test for:', settings.proxy.server);
-                          
+
                           const res = await window.electronAPI?.proxyTest(settings.proxy.server);
                           console.log('Proxy test result:', res);
-                          
+
                           btn.innerText = res?.success ? 'Success!' : 'Failed';
                           btn.style.color = res?.success ? 'var(--amber)' : 'var(--red)';
                         } catch (err) {
@@ -363,7 +396,7 @@ export default function SettingsPage() {
                     >Test Connection</button>
 
                   </div>
-                  <input 
+                  <input
                     value={settings.proxy.server}
                     onChange={e => updateSettings({ proxy: { ...settings.proxy, server: e.target.value, preset: 'custom' } })}
                     placeholder="protocol://host:port (e.g. socks5://1.2.3.4:1080)"
@@ -379,9 +412,9 @@ export default function SettingsPage() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Proxy Cloud</div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <input 
-                        type="text" 
-                        placeholder="Search country..." 
+                      <input
+                        type="text"
+                        placeholder="Search country..."
                         onChange={(e) => {
                           const term = e.target.value.toLowerCase();
                           document.querySelectorAll('.proxy-item').forEach(el => {
@@ -397,7 +430,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div style={{ 
+                  <div style={{
                     flex: 1, overflowY: 'auto', paddingRight: 8,
                     display: 'flex', flexDirection: 'column', gap: 6,
                     scrollbarWidth: 'thin', scrollbarColor: 'var(--border) transparent'
@@ -433,9 +466,9 @@ export default function SettingsPage() {
                       const fullUrl = `${p.protocol}://${p.ip}`;
                       const isSelected = settings.proxy.server === fullUrl;
                       const isPriority = p.type.includes('Priority');
-                      
+
                       return (
-                        <div 
+                        <div
                           key={p.ip}
                           className="proxy-item"
                           data-country={p.country}
@@ -451,14 +484,14 @@ export default function SettingsPage() {
                           onMouseEnter={e => !isSelected && (e.currentTarget.style.borderColor = 'var(--border-hover)')}
                           onMouseLeave={e => !isSelected && (e.currentTarget.style.borderColor = isPriority ? 'rgba(232, 160, 48, 0.3)' : 'var(--border)')}
                         >
-                          <div style={{ 
-                            width: 32, height: 22, background: isPriority ? 'rgba(232, 160, 48, 0.1)' : 'rgba(255,255,255,0.05)', 
+                          <div style={{
+                            width: 32, height: 22, background: isPriority ? 'rgba(232, 160, 48, 0.1)' : 'rgba(255,255,255,0.05)',
                             borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: 10, fontWeight: 700, color: isPriority ? 'var(--amber)' : 'var(--text-muted)'
                           }}>
                             {p.country.substring(0, 2).toUpperCase()}
                           </div>
-                          
+
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--amber)' : 'var(--text-primary)' }}>
                               {p.country} {isPriority && <span style={{ color: 'var(--amber)', fontSize: 8, verticalAlign: 'middle', marginLeft: 4 }}>★</span>}
@@ -468,7 +501,7 @@ export default function SettingsPage() {
                             </div>
                           </div>
 
-                          <div style={{ 
+                          <div style={{
                             fontSize: 9, padding: '2px 6px', borderRadius: 4,
                             background: 'rgba(34, 197, 94, 0.1)',
                             color: '#22c55e',
@@ -518,15 +551,15 @@ export default function SettingsPage() {
 
           {activeTab === 'darkweb' && (
             <>
-              <div style={{ 
-                padding: '40px', borderRadius: 24, 
+              <div style={{
+                padding: '40px', borderRadius: 24,
                 background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.2) 0%, rgba(15, 23, 42, 0.4) 100%)',
                 border: '1px solid rgba(168, 85, 247, 0.3)',
                 position: 'relative', overflow: 'hidden', marginBottom: 30,
                 boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
               }}>
                 <div style={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, background: 'rgba(168, 85, 247, 0.1)', filter: 'blur(80px)', borderRadius: '50%' }} />
-                
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
                   <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(168, 85, 247, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name="eye" size={24} color="#a855f7" />
@@ -538,30 +571,30 @@ export default function SettingsPage() {
                 </div>
 
                 <p style={{ fontSize: 14, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)', maxWidth: 500, marginBottom: 30 }}>
-                  Dark Web Mode routes all traffic through the TOR (The Onion Router) network. 
+                  Dark Web Mode routes all traffic through the TOR (The Onion Router) network.
                   This hides your identity and allows access to .onion websites.
                 </p>
 
-                <div style={{ 
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                  padding: '20px', background: 'rgba(0,0,0,0.3)', borderRadius: 16, border: '1px solid rgba(168, 85, 247, 0.2)' 
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '20px', background: 'rgba(0,0,0,0.3)', borderRadius: 16, border: '1px solid rgba(168, 85, 247, 0.2)'
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Activate TOR Mode</div>
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                      {torInfo.status === 'ready' 
+                      {torInfo.status === 'ready'
                         ? 'Connected to embedded TOR instance'
                         : `TOR Service: ${torInfo.status.toUpperCase()}`}
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => updateSettings({ darkWebMode: !settings.darkWebMode })}
                     disabled={torInfo.status !== 'ready'}
                     style={{
-                      padding: '10px 24px', borderRadius: 12, 
+                      padding: '10px 24px', borderRadius: 12,
                       background: settings.darkWebMode ? '#a855f7' : 'rgba(255,255,255,0.05)',
                       border: 'none', color: settings.darkWebMode ? '#fff' : 'rgba(255,255,255,0.6)',
-                      fontSize: 14, fontWeight: 600, cursor: (torInfo.status !== 'ready') ? 'not-allowed' : 'pointer', 
+                      fontSize: 14, fontWeight: 600, cursor: (torInfo.status !== 'ready') ? 'not-allowed' : 'pointer',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       boxShadow: settings.darkWebMode ? '0 0 20px rgba(168, 85, 247, 0.4)' : 'none',
                       transform: settings.darkWebMode ? 'scale(1.05)' : 'scale(1)',
@@ -575,51 +608,51 @@ export default function SettingsPage() {
 
               <Section title="Embedded TOR Status">
                 <div style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ 
-                          width: 10, height: 10, borderRadius: '50%', 
-                          background: torInfo.status === 'ready' ? '#22c55e' : (torInfo.status === 'bootstrapping' ? 'var(--amber)' : 'var(--red)'),
-                          boxShadow: torInfo.status === 'ready' ? '0 0 10px #22c55e' : 'none'
-                        }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
-                          {torInfo.status}
-                        </span>
-                      </div>
-                      
-                      {torInfo.status === 'offline' && (
-                        <button 
-                          onClick={() => {
-                            window.electronAPI?.torStart();
-                            setTorInfo(prev => ({ ...prev, status: 'bootstrapping' }));
-                          }}
-                          style={{
-                            padding: '4px 12px', background: 'var(--amber-dim)', border: '1px solid var(--amber)',
-                            borderRadius: 6, color: 'var(--amber)', fontSize: 11, fontWeight: 600, cursor: 'pointer'
-                          }}
-                        >Start Service</button>
-                      )}
-                      
-                      {torInfo.status !== 'offline' && (
-                        <button 
-                          onClick={() => window.electronAPI?.torStop()}
-                          style={{
-                            padding: '4px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444',
-                            borderRadius: 6, color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer'
-                          }}
-                        >Stop Service</button>
-                      )}
-                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 10, height: 10, borderRadius: '50%',
+                        background: torInfo.status === 'ready' ? '#22c55e' : (torInfo.status === 'bootstrapping' ? 'var(--amber)' : 'var(--red)'),
+                        boxShadow: torInfo.status === 'ready' ? '0 0 10px #22c55e' : 'none'
+                      }} />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                        {torInfo.status}
+                      </span>
+                    </div>
 
-                   <div 
-                     ref={torLogRef}
-                     style={{ 
-                     height: 120, overflowY: 'auto', background: '#000', borderRadius: 8, padding: 12,
-                     fontFamily: 'var(--font-mono)', fontSize: 10, color: '#22c55e', lineHeight: 1.4,
-                     border: '1px solid rgba(34, 197, 94, 0.2)'
-                   }}>
-                     {torInfo.log?.length > 0 ? torInfo.log.map((l, i) => <div key={i}>{l}</div>) : <div style={{ opacity: 0.3 }}>Waiting for TOR logs...</div>}
-                   </div>
+                    {torInfo.status === 'offline' && (
+                      <button
+                        onClick={() => {
+                          window.electronAPI?.torStart();
+                          setTorInfo(prev => ({ ...prev, status: 'bootstrapping' }));
+                        }}
+                        style={{
+                          padding: '4px 12px', background: 'var(--amber-dim)', border: '1px solid var(--amber)',
+                          borderRadius: 6, color: 'var(--amber)', fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                        }}
+                      >Start Service</button>
+                    )}
+
+                    {torInfo.status !== 'offline' && (
+                      <button
+                        onClick={() => window.electronAPI?.torStop()}
+                        style={{
+                          padding: '4px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444',
+                          borderRadius: 6, color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                        }}
+                      >Stop Service</button>
+                    )}
+                  </div>
+
+                  <div
+                    ref={torLogRef}
+                    style={{
+                      height: 120, overflowY: 'auto', background: '#000', borderRadius: 8, padding: 12,
+                      fontFamily: 'var(--font-mono)', fontSize: 10, color: '#22c55e', lineHeight: 1.4,
+                      border: '1px solid rgba(34, 197, 94, 0.2)'
+                    }}>
+                    {torInfo.log?.length > 0 ? torInfo.log.map((l, i) => <div key={i}>{l}</div>) : <div style={{ opacity: 0.3 }}>Waiting for TOR logs...</div>}
+                  </div>
                 </div>
               </Section>
 
@@ -642,15 +675,15 @@ export default function SettingsPage() {
                 </div>
               </Section>
 
-              <div style={{ 
-                marginTop: 20, padding: '16px', borderRadius: 12, background: 'rgba(239, 68, 68, 0.05)', 
-                border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', gap: 12 
+              <div style={{
+                marginTop: 20, padding: '16px', borderRadius: 12, background: 'rgba(239, 68, 68, 0.05)',
+                border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', gap: 12
               }}>
                 <Icon name="stop" size={16} color="#ef4444" style={{ marginTop: 2 }} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#ef4444' }}>Security Note</div>
                   <div style={{ fontSize: 12, color: 'rgba(239, 68, 68, 0.8)', marginTop: 4, lineHeight: 1.5 }}>
-                    Ensure you have the TOR Browser or TOR Expert Bundle installed and running in the background. 
+                    Ensure you have the TOR Browser or TOR Expert Bundle installed and running in the background.
                     Obsidian Browser connects to the local TOR proxy automatically.
                   </div>
                 </div>
@@ -661,39 +694,53 @@ export default function SettingsPage() {
           {activeTab === 'visuals' && (
             <>
               <Section title="Environment Effects">
-                <Toggle 
-                  label="Starfield Background" 
+                <Toggle
+                  label="Starfield Background"
                   desc="Show an interactive animated starfield on the New Tab page."
-                  value={settings.coolFeatures?.starfield} 
-                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, starfield: v } })} 
+                  value={settings.coolFeatures?.starfield}
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, starfield: v } })}
                 />
-                <Toggle 
-                  label="Glitch Transitions" 
+                <Toggle
+                  label="Glitch Transitions"
                   desc="Subtle glitch effect when switching between browser tabs."
-                  value={settings.coolFeatures?.glitchTransitions} 
-                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, glitchTransitions: v } })} 
+                  value={settings.coolFeatures?.glitchTransitions}
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, glitchTransitions: v } })}
                 />
               </Section>
 
               <Section title="Interface Features">
-                <Toggle 
-                  label="Command Palette (Ctrl+Shift+P)" 
+                <Toggle
+                  label="Command Palette (Ctrl+Shift+P)"
                   desc="Quick access to search, tabs, and commands via a terminal-like interface."
-                  value={settings.coolFeatures?.commandPalette} 
-                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, commandPalette: v } })} 
+                  value={settings.coolFeatures?.commandPalette}
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, commandPalette: v } })}
                 />
-                <Toggle 
-                  label="Privacy Pulse" 
+                <Toggle
+                  label="Privacy Pulse"
                   desc="Animated glowing indicator around the URL bar for security status."
-                  value={settings.coolFeatures?.privacyPulse} 
-                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, privacyPulse: v } })} 
+                  value={settings.coolFeatures?.privacyPulse}
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, privacyPulse: v } })}
                 />
-                <Toggle 
-                  label="Holographic HUD" 
+                <Toggle
+                  label="Holographic HUD"
                   desc="A floating heads-up display with system and session diagnostics."
-                  value={settings.coolFeatures?.holographicHUD} 
-                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, holographicHUD: v } })} 
+                  value={settings.coolFeatures?.holographicHUD}
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, holographicHUD: v } })}
                 />
+                {settings.coolFeatures?.holographicHUD && (
+                  <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>HUD Transparency</span>
+                      <span style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>{Math.round((1 - settings.coolFeatures.hudOpacity) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range" min="0.1" max="1" step="0.05"
+                      value={settings.coolFeatures.hudOpacity}
+                      onChange={e => updateSettings({ coolFeatures: { ...settings.coolFeatures, hudOpacity: parseFloat(e.target.value) } })}
+                      style={{ width: '100%', accentColor: 'var(--amber)' }}
+                    />
+                  </div>
+                )}
               </Section>
             </>
           )}
