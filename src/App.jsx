@@ -5,6 +5,8 @@ import SettingsPage from './SettingsPage.jsx';
 import LockScreen from './LockScreen.jsx';
 import DownloadsPanel from './DownloadsPanel.jsx';
 import NoirGame from './NoirGame.jsx';
+import CommandPalette from './CommandPalette.jsx';
+import HUDOverlay from './HUDOverlay.jsx';
 
 // ─── Tab factory ──────────────────────────────────────────────────────────────
 
@@ -448,6 +450,9 @@ export default function App() {
   const [promptValue, setPromptValue]       = useState(''); // for controlled prompt input
   const [settings, setSettings]             = useState(null);
   const [zoomImage, setZoomImage]           = useState(null); // URL of image to zoom
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [hudActive, setHudActive]           = useState(false);
+  const [torStatus, setTorStatus]           = useState('offline');
 
   const webviewRefs     = useRef({});
   const attachedWebviews = useRef(new Set());
@@ -665,6 +670,8 @@ export default function App() {
     api.on('window-state', state => setIsMaximized(state === 'maximized'));
     api.on('open-new-tab', url => addTab(url));
     api.on('settings-updated', s => setSettings(s));
+    api.on('tor-status', info => setTorStatus(info.status));
+    api.torStatusGet().then(info => setTorStatus(info.status));
 
     api.on('download-progress', ({ filename, received, total }) => {
       setDownloads(ds => {
@@ -727,6 +734,14 @@ export default function App() {
           setActiveId(ts[n].id);
           return ts;
         });
+        break;
+      }
+      case 'command-palette': {
+        if (settings?.coolFeatures?.commandPalette) setCommandPaletteOpen(v => !v);
+        break;
+      }
+      case 'toggle-hud': {
+        if (settings?.coolFeatures?.holographicHUD) setHudActive(v => !v);
         break;
       }
       case 'peek-link':       triggerPeek(); break;
@@ -1047,6 +1062,7 @@ export default function App() {
           onNavigate={url => navigate(url, activeId)}
           onStop={stop}
           onReload={reload}
+          settings={settings}
         />
 
         {/* Right toolbar buttons */}
@@ -1139,13 +1155,14 @@ export default function App() {
               position: 'absolute', inset: 0,
               visibility: tab.id === activeId ? 'visible' : 'hidden',
               zIndex: tab.id === activeId ? 1 : 0,
+              animation: (settings?.coolFeatures?.glitchTransitions && tab.id === activeId) ? 'pulse 0.1s steps(2)' : 'none'
             }}>
               {tab.url === 'about:settings' ? (
                 <SettingsPage />
               ) : tab.url === 'about:game' ? (
                 <NoirGame onExit={() => goHome()} />
               ) : (tab.url === 'about:newtab' || tab.url === 'about:blank') ? (
-                <NewTabPage onNavigate={url => navigate(url, tab.id)} />
+                <NewTabPage onNavigate={url => navigate(url, tab.id)} settings={settings} />
               ) : (
                 <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                   {tab.error && (
@@ -1565,6 +1582,25 @@ export default function App() {
         {zoomImage && (
           <ZoomOverlay url={zoomImage} onClose={() => setZoomImage(null)} />
         )}
+
+        <CommandPalette 
+          isOpen={commandPaletteOpen} 
+          onClose={() => setCommandPaletteOpen(false)}
+          onAction={(action, data) => {
+            if (action === 'switch-tab') setActiveId(data);
+            else if (action === 'new-tab') addTab(data);
+            else handleShortcutAction(action);
+          }}
+          tabs={tabs}
+          currentTabId={activeId}
+        />
+
+        <HUDOverlay 
+          active={hudActive} 
+          settings={settings}
+          tabCount={tabs.length}
+          torStatus={torStatus}
+        />
 
       </div>
     </div>

@@ -207,12 +207,14 @@ function Tab({ tab, isActive, onActivate, onClose, onPin, onContextMenu, onDragS
 
 // ─── URL Bar ──────────────────────────────────────────────────────────────────
 
-function UrlBar({ url, loading, onNavigate, onStop, onReload }) {
+function UrlBar({ url, loading, onNavigate, onStop, onReload, settings }) {
   const [editing, setEditing]   = useState(false);
   const [value,   setValue]     = useState('');
   const inputRef = useRef(null);
   const secure = isSecure(url);
   const display = displayUrl(url);
+  const isDarkWeb = settings?.darkWebMode;
+  const pulseEnabled = settings?.coolFeatures?.privacyPulse;
 
   const startEdit = () => {
     setValue(url && url !== 'about:blank' && url !== 'about:newtab' ? url : '');
@@ -237,13 +239,32 @@ function UrlBar({ url, loading, onNavigate, onStop, onReload }) {
       background: 'var(--bg-base)', border: '1px solid',
       borderColor: editing ? 'var(--border-focus)' : 'var(--border)',
       borderRadius: 'var(--radius-md)', padding: '0 12px',
-      transition: 'border-color 0.15s, box-shadow 0.15s',
-      boxShadow: editing ? '0 0 0 3px rgba(232,160,48,0.08)' : 'none',
+      transition: 'all 0.15s, box-shadow 0.15s',
+      boxShadow: editing 
+        ? '0 0 0 3px rgba(232,160,48,0.08)' 
+        : (pulseEnabled && isDarkWeb)
+          ? '0 0 10px rgba(168, 85, 247, 0.2)'
+          : (pulseEnabled && secure)
+            ? '0 0 10px rgba(232, 160, 48, 0.15)'
+            : 'none',
+      position: 'relative',
     }}>
+      {/* Privacy Pulse Ring */}
+      {pulseEnabled && (secure || isDarkWeb) && !editing && (
+        <div style={{
+          position: 'absolute', inset: -1, borderRadius: 'var(--radius-md)',
+          border: `1px solid ${isDarkWeb ? '#a855f7' : 'var(--amber)'}`,
+          opacity: 0.4, pointerEvents: 'none',
+          animation: 'pulse 2s infinite'
+        }} />
+      )}
+
       {/* Security icon */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
         {editing ? (
           <Icon name="search" size={13} color="var(--text-muted)" />
+        ) : isDarkWeb ? (
+          <Icon name="eye" size={13} color="#a855f7" />
         ) : secure ? (
           <Icon name="lock" size={13} color="var(--amber)" />
         ) : url && url !== 'about:blank' ? (
@@ -279,7 +300,8 @@ function UrlBar({ url, loading, onNavigate, onStop, onReload }) {
           style={{
             flex: 1, cursor: 'text', overflow: 'hidden', textOverflow: 'ellipsis',
             whiteSpace: 'nowrap', fontSize: 13, fontFamily: 'var(--font-mono)',
-            color: display ? 'var(--text-secondary)' : 'var(--text-muted)',
+            color: isDarkWeb ? '#a855f7' : display ? 'var(--text-secondary)' : 'var(--text-muted)',
+            opacity: isDarkWeb ? 0.8 : 1,
           }}
         >
           {display || 'Search or enter a URL'}

@@ -176,6 +176,15 @@ export default function SettingsPage() {
           <Icon name="eye" size={14} color="currentColor" /> Dark Web
         </button>
 
+        <button onClick={() => setActiveTab('visuals')} style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          background: activeTab === 'visuals' ? 'var(--amber-dim)' : 'none',
+          color: activeTab === 'visuals' ? 'var(--amber)' : 'var(--text-secondary)',
+          textAlign: 'left', fontSize: 13, fontWeight: activeTab === 'visuals' ? 600 : 400, transition: 'all 0.12s'
+        }}>
+          <Icon name="zoom" size={14} color="currentColor" /> Visuals
+        </button>
+
         <div style={{ flex: 1 }} />
         
         <button onClick={resetSettings} style={{
@@ -500,6 +509,8 @@ export default function SettingsPage() {
               <ShortcutRow action="lock-browser" label="Lock Browser (PIN)" combo={settings.shortcuts['lock-browser']} />
               <ShortcutRow action="peek-link" label="Peek Link Overlay" combo={settings.shortcuts['peek-link']} />
               <ShortcutRow action="open-file" label="Open Local File" combo={settings.shortcuts['open-file']} />
+              <ShortcutRow action="command-palette" label="Command Palette" combo={settings.shortcuts['command-palette']} />
+              <ShortcutRow action="toggle-hud" label="Toggle HUD Overlay" combo={settings.shortcuts['toggle-hud']} />
               <ShortcutRow action="toggle-visibility" label="Global Visibility Toggle" combo={settings.shortcuts['toggle-visibility']} />
               <div style={{ height: 40 }} />
             </Section>
@@ -644,6 +655,46 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+            </>
+          )}
+
+          {activeTab === 'visuals' && (
+            <>
+              <Section title="Environment Effects">
+                <Toggle 
+                  label="Starfield Background" 
+                  desc="Show an interactive animated starfield on the New Tab page."
+                  value={settings.coolFeatures?.starfield} 
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, starfield: v } })} 
+                />
+                <Toggle 
+                  label="Glitch Transitions" 
+                  desc="Subtle glitch effect when switching between browser tabs."
+                  value={settings.coolFeatures?.glitchTransitions} 
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, glitchTransitions: v } })} 
+                />
+              </Section>
+
+              <Section title="Interface Features">
+                <Toggle 
+                  label="Command Palette (Ctrl+Shift+P)" 
+                  desc="Quick access to search, tabs, and commands via a terminal-like interface."
+                  value={settings.coolFeatures?.commandPalette} 
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, commandPalette: v } })} 
+                />
+                <Toggle 
+                  label="Privacy Pulse" 
+                  desc="Animated glowing indicator around the URL bar for security status."
+                  value={settings.coolFeatures?.privacyPulse} 
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, privacyPulse: v } })} 
+                />
+                <Toggle 
+                  label="Holographic HUD" 
+                  desc="A floating heads-up display with system and session diagnostics."
+                  value={settings.coolFeatures?.holographicHUD} 
+                  onChange={v => updateSettings({ coolFeatures: { ...settings.coolFeatures, holographicHUD: v } })} 
+                />
+              </Section>
             </>
           )}
         </div>

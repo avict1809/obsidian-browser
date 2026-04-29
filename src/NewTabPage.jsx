@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { normalizeUrl, QUICK_SITES, Icon } from './components.jsx';
+import Starfield from './Starfield.jsx';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -18,7 +19,7 @@ function getDate() {
   return new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-export default function NewTabPage({ onNavigate }) {
+export default function NewTabPage({ onNavigate, settings }) {
   const [query, setQuery]   = useState('');
   const [time,  setTime]    = useState(getTime());
   const [history, setHistory] = useState([]);
@@ -42,7 +43,9 @@ export default function NewTabPage({ onNavigate }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', gap: 40, padding: 40, overflowY: 'auto',
       animation: 'fadeIn 0.3s ease',
+      position: 'relative'
     }}>
+      {settings?.coolFeatures?.starfield && <Starfield />}
       {/* Clock + greeting */}
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 56, fontWeight: 300, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', letterSpacing: -2, lineHeight: 1 }}>
