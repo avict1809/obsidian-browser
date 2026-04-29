@@ -283,7 +283,7 @@ export default function SettingsPage() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
                       <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>Obsidian Browser</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Version 1.0.5</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Version 1.0.6</div>
                     </div>
 
                     {updateStatus.state === 'idle' || updateStatus.state === 'not-available' || updateStatus.state === 'error' ? (

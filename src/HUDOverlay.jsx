@@ -321,7 +321,7 @@ export default function HUDOverlay({ active, settings, tabCount = 0, torStatus, 
             OBSIDIAN_OS
           </div>
           <div style={{ fontFamily: MONO, fontSize: 10, color: A, opacity: 0.9, fontWeight: 700, letterSpacing: 2.5 }}>
-            v1.0.5 // BUILD_2047
+            v1.0.6 // BUILD_2047
           </div>
           <div style={{
             fontFamily: MONO, fontSize: 8, letterSpacing: 2,

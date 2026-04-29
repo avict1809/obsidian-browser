@@ -434,12 +434,12 @@ export default function App() {
 
   // Tab glitch effect
   useEffect(() => {
-    if (activeId) {
+    if (activeId && settings?.coolFeatures?.glitchTransitions) {
       setGlitch(true);
       const t = setTimeout(() => setGlitch(false), 200);
       return () => clearTimeout(t);
     }
-  }, [activeId]);
+  }, [activeId, settings]);
   const [showHistory, setShowHistory] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
   const [downloads, setDownloads]     = useState([]);
@@ -1220,11 +1220,12 @@ export default function App() {
                     }}
                     src={tab.initialUrl}
                     partition="persist:obsidian"
+                    useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
                     preload={webviewPreload}
                     plugins="true"
                     style={{ width: '100%', height: '100%', border: 'none', display: tab.error ? 'none' : 'flex', background: '#fff' }}
                     allowpopups="true"
-                    webpreferences="contextIsolation=yes"
+                    webpreferences="contextIsolation=1, nodeIntegration=0, trustChildWebViews=1, allowRunningInsecureContent=0"
                   />
                 </div>
               )}
@@ -1301,9 +1302,10 @@ export default function App() {
                 <webview
                   src={peek.url}
                   partition="persist:obsidian"
+                  useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
                   plugins="true"
                   style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
-                  webpreferences="contextIsolation=yes"
+                  webpreferences="contextIsolation=1, nodeIntegration=0"
                 />
               </div>
             </div>

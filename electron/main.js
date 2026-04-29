@@ -32,7 +32,7 @@ console.warn = function (...args) {
 
 const isDev = process.env.NODE_ENV === 'development';
 const PARTITION = 'persist:obsidian';
-const CUSTOM_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+const CUSTOM_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 // Aggressively ignore certificate errors for proxy compatibility
 
@@ -41,6 +41,8 @@ app.commandLine.appendSwitch('allow-insecure-localhost');
 app.commandLine.appendSwitch('disable-http2');
 app.commandLine.appendSwitch('disable-quic');
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.commandLine.appendSwitch('disable-features', 'UserAgentClientHint');
+app.commandLine.appendSwitch('enable-blink-features', 'SharedArrayBuffer');
 
 
 
