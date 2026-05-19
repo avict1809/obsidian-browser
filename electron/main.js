@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, shell, dialog, webContents, nativeTheme, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, Tray, shell, dialog, webContents, nativeTheme, globalShortcut, nativeImage } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -50,6 +50,7 @@ console.log('Is dev mode:', isDev);
 console.log('NODE_ENV:', process.env.NODE_ENV);
 
 let mainWindow = null;
+let tray = null;
 let torProcess = null;
 let torStatus = 'offline'; // 'offline', 'bootstrapping', 'ready'
 let torLog = [];
@@ -276,8 +277,69 @@ function registerGlobalShortcuts() {
         }
       }
     });
-    console.log(`Registration of ${accel}: ${success ? 'SUCCESS' : 'FAILED'}`);
+    if (!success) {
+      console.warn(`Global shortcut ${accel} failed to register (common on Wayland). Use the tray icon to toggle visibility.`);
+    } else {
+      console.log(`Global shortcut ${accel} registered.`);
+    }
   }
+}
+
+function createTray() {
+  if (tray && !tray.isDestroyed()) return;
+
+  const iconPath = path.join(__dirname, '../assets/icon.png');
+  let trayIcon;
+  try {
+    // Scale down to a sensible tray size (16x16 on Linux, 22x22 on others)
+    const size = process.platform === 'linux' ? 22 : 16;
+    trayIcon = nativeImage.createFromPath(iconPath).resize({ width: size, height: size });
+  } catch {
+    trayIcon = nativeImage.createEmpty();
+  }
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip('Obsidian Browser');
+
+  const updateMenu = () => {
+    const anyVisible = Array.from(windows).some(w => !w.isDestroyed() && w.isVisible());
+    const menu = Menu.buildFromTemplate([
+      {
+        label: anyVisible ? 'Hide Browser' : 'Show Browser',
+        click: () => {
+          for (const win of windows) {
+            if (win.isDestroyed()) continue;
+            if (win.isVisible()) {
+              win.hide();
+            } else {
+              win.show();
+              win.focus();
+            }
+          }
+          updateMenu();
+        },
+      },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { app.quit(); } },
+    ]);
+    tray.setContextMenu(menu);
+  };
+
+  updateMenu();
+
+  // Single-click also toggles on Linux (double-click is unreliable there)
+  tray.on('click', () => {
+    for (const win of windows) {
+      if (win.isDestroyed()) continue;
+      if (win.isVisible()) {
+        win.hide();
+      } else {
+        win.show();
+        win.focus();
+      }
+    }
+    updateMenu();
+  });
 }
 
 // ── Persist user sessions across restarts ──────────────────────────────────
@@ -819,6 +881,10 @@ app.whenReady().then(() => {
   // Register global shortcuts from settings
   registerGlobalShortcuts();
 
+  // Always create a tray icon so the window can be toggled on Linux/Wayland
+  // where globalShortcut may fail to register
+  createTray();
+
   app.on('activate', () => {
     if (!mainWindow) createWindow();
   });
@@ -842,5 +908,10 @@ app.on('certificate-error', (event, webContents, url, error, certificate, callba
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // On macOS the app conventionally stays running until explicitly quit.
+  // On Linux/Windows, stay alive if we have a tray icon so the user can
+  // reopen the window — otherwise quit normally.
+  if (process.platform === 'darwin') return;
+  if (tray && !tray.isDestroyed()) return;
+  app.quit();
 });
